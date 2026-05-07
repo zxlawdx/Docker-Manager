@@ -1,0 +1,3 @@
+URL = {
+    "server": "server.py"
+}

@@ -1,0 +1,14 @@
+certifi==2026.4.22
+charset-normalizer==3.4.7
+docker==7.1.0
+grpcio==1.80.0
+grpcio-tools==1.80.0
+idna==3.13
+protobuf==6.33.6
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.0
+PyQt6_sip==13.11.1
+requests==2.33.1
+setuptools==82.0.1
+typing_extensions==4.15.0
+urllib3==2.6.3

@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+service DockerManager {
+  rpc ListContainers (Empty) returns (ContainerList);
+  rpc StartContainer (ContainerRequest) returns (ActionResponse);
+  rpc StopContainer (ContainerRequest) returns (ActionResponse);
+  rpc ListImages (Empty) returns (ImageList);
+}
+
+message Empty {}
+
+message ContainerRequest {
+  string id = 1;
+}
+
+message ContainerInfo {
+  string id = 1;
+  string name = 2;
+  string status = 3;
+}
+
+message ContainerList {
+  repeated ContainerInfo containers = 1;
+}
+
+message ActionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ImageInfo {
+  string id = 1;
+  string tag = 2;
+  string short_id = 3;
+  string disk_usage = 4;
+  string content_size = 5;
+  string created = 6;
+}
+
+
+message ImageList {
+  repeated ImageInfo images = 1;
+}
