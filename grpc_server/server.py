@@ -204,9 +204,9 @@ class DockerManagerService(pb2_grpc.DockerManagerServicer):
             )
 
 
-# =========================================================
-# Inicialização do servidor
-# =========================================================
+    # =========================================================
+    # createcontainer
+    # =========================================================
     def CreateContainer(self, request, context):
             print(f"[SERVER] Requisição: CreateContainer -> Imagem: {request.image_name}", flush=True)
 

@@ -2,7 +2,7 @@
 main_window.py - Janela principal do DockerFlow
 Estrutura simples: barra lateral + área principal
 """
-
+from terminal_page import TerminalPage
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QPushButton, QLabel, QStackedWidget, QFrame
@@ -42,8 +42,9 @@ class Sidebar(QWidget):
         # Botões de navegação: (texto, ícone, página)
         nav_items = [
             ("Containers", "📦", "containers"),
-            ("Imagens",    "🖼️",  "images"),
+            ("Imagens", "🖼️", "images"),
             ("Criar Container", "➕", "create_container"),
+            ("Terminal", "⌨️", "terminal"),
         ]
 
         for text, icon, page_id in nav_items:
@@ -111,8 +112,9 @@ class MainWindow(QMainWindow):
         # Registra as páginas
         self.page_map = {}
         self._add_page("containers", ContainersPage())
-        self._add_page("images",     ImagesPage())
+        self._add_page("images", ImagesPage())
         self._add_page("create_container", CreateContainerPage())
+        self._add_page("terminal", TerminalPage())
 
     def _add_page(self, page_id: str, widget: QWidget):
         self.pages.addWidget(widget)

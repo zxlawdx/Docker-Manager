@@ -57,6 +57,7 @@ docker_manager/
     ├── main_window.py               # Janela principal + estilos globais
     ├── grpc_client.py               # Camada de comunicação com o servidor
     ├── containers_page.py           # Tela de gerenciamento de containers
+    ├── create_container_page.py           # Tela de gerenciamento de containers
     ├── images_page.py               # Tela de listagem de imagens
     ├── manage_widget.py             # Alternativa de inicialização da interface
     ├── url.py                       # Mapeamento de arquivos (usado pelo manage.py)
