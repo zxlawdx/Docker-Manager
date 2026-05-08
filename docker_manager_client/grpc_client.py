@@ -85,6 +85,24 @@ class GrpcClient:
         response = self._stub.RemoveContainer(pb2.ContainerRequest(id=container_id))
         return response.success, getattr(response, "message", "")
 
+    def create_container(self, image_name: str, container_name: str) -> tuple[bool, str]:
+        """Cria um novo container. Retorna (sucesso, mensagem)."""
+        if not GRPC_AVAILABLE:
+            return True, "Criado (mock)"
+
+        try:
+            # Cria o pedido com os dados que definimos no arquivo .proto
+            request = pb2.CreateContainerRequest(
+                image_name=image_name, 
+                container_name=container_name
+            )
+            # Chama a função no servidor
+            response = self._stub.CreateContainer(request)
+            return response.success, getattr(response, "message", "")
+        except Exception as e:
+            return False, f"Erro de comunicação: {str(e)}"
+        
+        
     # ── Imagens ──────────────────────────────────────────────────────────────
 
     def list_images(self) -> list[dict]:

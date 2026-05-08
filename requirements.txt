@@ -8,6 +8,7 @@ protobuf==6.33.6
 PyQt6==6.11.0
 PyQt6-Qt6==6.11.0
 PyQt6_sip==13.11.1
+PyYAML==6.0.3
 requests==2.33.1
 setuptools==82.0.1
 typing_extensions==4.15.0

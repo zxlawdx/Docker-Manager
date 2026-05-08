@@ -117,6 +117,7 @@ class DockerManagerService(pb2_grpc.DockerManagerServicer):
     # =====================================================
     # Inicia container
     # =====================================================
+    
     def StartContainer(self, request, context):
 
         print(
@@ -203,9 +204,36 @@ class DockerManagerService(pb2_grpc.DockerManagerServicer):
             )
 
 
-# =========================================================
-# Inicialização do servidor
-# =========================================================
+    # =========================================================
+    # createcontainer
+    # =========================================================
+    def CreateContainer(self, request, context):
+            print(f"[SERVER] Requisição: CreateContainer -> Imagem: {request.image_name}", flush=True)
+
+            try:
+                # Tratamento básico de portas (Ex: recebe "8080:80", converte para {"80/tcp": 8080})
+                port_bindings = None
+                if hasattr(request, 'ports') and ":" in request.ports:
+                    host_port, container_port = request.ports.split(':')
+                    port_bindings = {f"{container_port}/tcp": int(host_port)}
+
+                # O Docker SDK baixa a imagem se não existir e cria o container
+                container = self.docker_client.containers.run(
+                    image=request.image_name,
+                    name=request.container_name if request.container_name else None,
+                    ports=port_bindings,
+                    detach=True
+                )
+
+                return pb2.ActionResponse(
+                    success=True, 
+                    message=f"Container {container.name} criado com sucesso!"
+                )
+
+            except Exception as error:
+                print(f"[SERVER][ERRO] {str(error)}", flush=True)
+                return pb2.ActionResponse(success=False, message=str(error))
+            
 def serve():
 
     # host e porta

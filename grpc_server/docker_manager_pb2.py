@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14\x64ocker_manager.proto\"\x07\n\x05\x45mpty\"\x1e\n\x10\x43ontainerRequest\x12\n\n\x02id\x18\x01 \x01(\t\"9\n\rContainerInfo\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\"3\n\rContainerList\x12\"\n\ncontainers\x18\x01 \x03(\x0b\x32\x0e.ContainerInfo\"2\n\x0e\x41\x63tionResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"q\n\tImageInfo\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0b\n\x03tag\x18\x02 \x01(\t\x12\x10\n\x08short_id\x18\x03 \x01(\t\x12\x12\n\ndisk_usage\x18\x04 \x01(\t\x12\x14\n\x0c\x63ontent_size\x18\x05 \x01(\t\x12\x0f\n\x07\x63reated\x18\x06 \x01(\t\"\'\n\tImageList\x12\x1a\n\x06images\x18\x01 \x03(\x0b\x32\n.ImageInfo2\xc6\x01\n\rDockerManager\x12(\n\x0eListContainers\x12\x06.Empty\x1a\x0e.ContainerList\x12\x34\n\x0eStartContainer\x12\x11.ContainerRequest\x1a\x0f.ActionResponse\x12\x33\n\rStopContainer\x12\x11.ContainerRequest\x1a\x0f.ActionResponse\x12 \n\nListImages\x12\x06.Empty\x1a\n.ImageListb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14\x64ocker_manager.proto\"\x07\n\x05\x45mpty\"\x1e\n\x10\x43ontainerRequest\x12\n\n\x02id\x18\x01 \x01(\t\"d\n\x16\x43reateContainerRequest\x12\x12\n\nimage_name\x18\x01 \x01(\t\x12\x16\n\x0e\x63ontainer_name\x18\x02 \x01(\t\x12\r\n\x05ports\x18\x03 \x01(\t\x12\x0f\n\x07volumes\x18\x04 \x01(\t\"9\n\rContainerInfo\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\"3\n\rContainerList\x12\"\n\ncontainers\x18\x01 \x03(\x0b\x32\x0e.ContainerInfo\"2\n\x0e\x41\x63tionResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"q\n\tImageInfo\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0b\n\x03tag\x18\x02 \x01(\t\x12\x10\n\x08short_id\x18\x03 \x01(\t\x12\x12\n\ndisk_usage\x18\x04 \x01(\t\x12\x14\n\x0c\x63ontent_size\x18\x05 \x01(\t\x12\x0f\n\x07\x63reated\x18\x06 \x01(\t\"\'\n\tImageList\x12\x1a\n\x06images\x18\x01 \x03(\x0b\x32\n.ImageInfo2\x83\x02\n\rDockerManager\x12(\n\x0eListContainers\x12\x06.Empty\x1a\x0e.ContainerList\x12\x34\n\x0eStartContainer\x12\x11.ContainerRequest\x1a\x0f.ActionResponse\x12\x33\n\rStopContainer\x12\x11.ContainerRequest\x1a\x0f.ActionResponse\x12 \n\nListImages\x12\x06.Empty\x1a\n.ImageList\x12;\n\x0f\x43reateContainer\x12\x17.CreateContainerRequest\x1a\x0f.ActionResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,16 +35,18 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_EMPTY']._serialized_end=31
   _globals['_CONTAINERREQUEST']._serialized_start=33
   _globals['_CONTAINERREQUEST']._serialized_end=63
-  _globals['_CONTAINERINFO']._serialized_start=65
-  _globals['_CONTAINERINFO']._serialized_end=122
-  _globals['_CONTAINERLIST']._serialized_start=124
-  _globals['_CONTAINERLIST']._serialized_end=175
-  _globals['_ACTIONRESPONSE']._serialized_start=177
-  _globals['_ACTIONRESPONSE']._serialized_end=227
-  _globals['_IMAGEINFO']._serialized_start=229
-  _globals['_IMAGEINFO']._serialized_end=342
-  _globals['_IMAGELIST']._serialized_start=344
-  _globals['_IMAGELIST']._serialized_end=383
-  _globals['_DOCKERMANAGER']._serialized_start=386
-  _globals['_DOCKERMANAGER']._serialized_end=584
+  _globals['_CREATECONTAINERREQUEST']._serialized_start=65
+  _globals['_CREATECONTAINERREQUEST']._serialized_end=165
+  _globals['_CONTAINERINFO']._serialized_start=167
+  _globals['_CONTAINERINFO']._serialized_end=224
+  _globals['_CONTAINERLIST']._serialized_start=226
+  _globals['_CONTAINERLIST']._serialized_end=277
+  _globals['_ACTIONRESPONSE']._serialized_start=279
+  _globals['_ACTIONRESPONSE']._serialized_end=329
+  _globals['_IMAGEINFO']._serialized_start=331
+  _globals['_IMAGEINFO']._serialized_end=444
+  _globals['_IMAGELIST']._serialized_start=446
+  _globals['_IMAGELIST']._serialized_end=485
+  _globals['_DOCKERMANAGER']._serialized_start=488
+  _globals['_DOCKERMANAGER']._serialized_end=747
 # @@protoc_insertion_point(module_scope)
