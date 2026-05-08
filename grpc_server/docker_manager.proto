@@ -5,12 +5,20 @@ service DockerManager {
   rpc StartContainer (ContainerRequest) returns (ActionResponse);
   rpc StopContainer (ContainerRequest) returns (ActionResponse);
   rpc ListImages (Empty) returns (ImageList);
+  rpc CreateContainer (CreateContainerRequest) returns (ActionResponse);
 }
 
 message Empty {}
 
 message ContainerRequest {
   string id = 1;
+}
+
+message CreateContainerRequest {
+  string image_name = 1;
+  string container_name = 2;
+  string ports = 3;   
+  string volumes = 4; 
 }
 
 message ContainerInfo {

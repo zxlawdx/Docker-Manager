@@ -54,6 +54,11 @@ class DockerManagerStub(object):
                 request_serializer=docker__manager__pb2.Empty.SerializeToString,
                 response_deserializer=docker__manager__pb2.ImageList.FromString,
                 _registered_method=True)
+        self.CreateContainer = channel.unary_unary(
+                '/DockerManager/CreateContainer',
+                request_serializer=docker__manager__pb2.CreateContainerRequest.SerializeToString,
+                response_deserializer=docker__manager__pb2.ActionResponse.FromString,
+                _registered_method=True)
 
 
 class DockerManagerServicer(object):
@@ -83,6 +88,12 @@ class DockerManagerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CreateContainer(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DockerManagerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -105,6 +116,11 @@ def add_DockerManagerServicer_to_server(servicer, server):
                     servicer.ListImages,
                     request_deserializer=docker__manager__pb2.Empty.FromString,
                     response_serializer=docker__manager__pb2.ImageList.SerializeToString,
+            ),
+            'CreateContainer': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateContainer,
+                    request_deserializer=docker__manager__pb2.CreateContainerRequest.FromString,
+                    response_serializer=docker__manager__pb2.ActionResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -215,6 +231,33 @@ class DockerManager(object):
             '/DockerManager/ListImages',
             docker__manager__pb2.Empty.SerializeToString,
             docker__manager__pb2.ImageList.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateContainer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DockerManager/CreateContainer',
+            docker__manager__pb2.CreateContainerRequest.SerializeToString,
+            docker__manager__pb2.ActionResponse.FromString,
             options,
             channel_credentials,
             insecure,

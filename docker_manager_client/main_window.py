@@ -12,7 +12,7 @@ from PyQt6.QtGui import QFont, QIcon
 
 from containers_page import ContainersPage
 from images_page import ImagesPage
-
+from create_container_page import CreateContainerPage
 
 class Sidebar(QWidget):
     """Barra lateral de navegação."""
@@ -43,6 +43,7 @@ class Sidebar(QWidget):
         nav_items = [
             ("Containers", "📦", "containers"),
             ("Imagens",    "🖼️",  "images"),
+            ("Criar Container", "➕", "create_container"),
         ]
 
         for text, icon, page_id in nav_items:
@@ -111,6 +112,7 @@ class MainWindow(QMainWindow):
         self.page_map = {}
         self._add_page("containers", ContainersPage())
         self._add_page("images",     ImagesPage())
+        self._add_page("create_container", CreateContainerPage())
 
     def _add_page(self, page_id: str, widget: QWidget):
         self.pages.addWidget(widget)
