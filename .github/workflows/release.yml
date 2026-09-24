@@ -47,9 +47,32 @@ jobs:
           test -f staticfiles/dockerflow/js/graph.js
           test -f staticfiles/dockerflow/js/studio.js
 
+
+  integration:
+    name: Docker Engine network integration
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Docker daemon available
+        run: docker info
+      - name: Test live network connects/disconnects in disposable containers
+        env:
+          DOCKERFLOW_INTEGRATION: "1"
+        run: |
+          python -m venv .venv-build
+          .venv-build/bin/python -m pip install -U pip wheel setuptools
+          .venv-build/bin/python -m pip install -r requirements.txt
+          .venv-build/bin/python -m unittest discover -s tests -p "test_docker_integration.py" -v
+
   linux:
     if: github.event_name != 'pull_request'
-    needs: tests
+    needs: [tests, integration]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +115,7 @@ jobs:
 
   windows:
     if: github.event_name != 'pull_request'
-    needs: tests
+    needs: [tests, integration]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
