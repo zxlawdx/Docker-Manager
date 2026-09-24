@@ -253,6 +253,11 @@
         field("CPUs (opcional)",n.cpus||"","cpus")+
         field("Memória MiB (opcional)",n.memory_mb||"","memory_mb")+
         field("Restart: no/always/unless-stopped/on-failure",n.restart||"","restart")+
+        '<label class="df-field"><span><input data-read-only type="checkbox" '+(n.read_only?'checked':'')+
+        '> Sistema de arquivos somente leitura</span></label>'+
+        '<label class="df-field">Mounts (JSON, source e target)'+
+        '<textarea rows="4" data-edit="volumes_text" spellcheck="false">'+esc(n.volumes_text||"[]")+
+        '</textarea></label>'+
         '<label class="df-field">Variáveis de ambiente (JSON)'+
         '<textarea data-edit="env_text" rows="4" spellcheck="false" placeholder="{ }">'+
         esc(n.env_text||"{}")+'</textarea></label>';
@@ -275,7 +280,15 @@
       if(img.startsWith("mysql") && !environment.MYSQL_ROOT_PASSWORD &&
          !environment.MYSQL_ALLOW_EMPTY_PASSWORD && !environment.MYSQL_RANDOM_ROOT_PASSWORD)
         throw new Error("Configure MYSQL_ROOT_PASSWORD em "+n.name+".");
-      return {name:n.name,image:n.image,network:null,ports,volumes:[],environment,
+      let mounts;
+      try{mounts=JSON.parse(n.volumes_text||"[]");}
+      catch(_){throw new Error("JSON de volumes inválido no container "+n.name);}
+      if(!Array.isArray(mounts)||mounts.length>20||!mounts.every(v=>
+          v&&typeof v==="object"&&!Array.isArray(v)&&typeof v.source==="string"&&
+          v.source.length>0&&typeof v.target==="string"&&v.target.startsWith("/")&&
+          v.target.length>1&&(!v.mode||["ro","rw"].includes(v.mode))))
+        throw new Error("Use lista JSON de volumes: source, target e mode opcional ro/rw.");
+      return {name:n.name,image:n.image,network:null,ports,volumes:mounts,environment,
               cpus:n.cpus||"",memory_mb:n.memory_mb||"",restart:n.restart||"",
               read_only:!!n.read_only};
     }
@@ -665,6 +678,7 @@
       if(!n||n.existing)return;
       if(e.target.dataset.edit){checkpoint();n[e.target.dataset.edit]=e.target.value;render();}
       if(e.target.hasAttribute("data-internal")){checkpoint();n.internal=e.target.checked;}
+      if(e.target.hasAttribute("data-read-only")){checkpoint();n.read_only=e.target.checked;}
       if(e.target.hasAttribute("data-preset")){
         const preset=imagePresets[e.target.value];
         if(preset){checkpoint();n.image=preset.image;n.container_port=preset.port;n.host_port="";

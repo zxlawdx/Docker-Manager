@@ -86,6 +86,24 @@ def to_compose(graph):
         if environment:
             service["environment"] = {str(k): None if v is None else str(v)
                                       for k, v in environment.items()}
+        if n.get("volumes_text") is not None:
+            try:
+                mounts = json.loads(n["volumes_text"])
+            except (ValueError, TypeError) as exc:
+                raise ValueError("JSON inválido de volumes em " + key) from exc
+            if not isinstance(mounts, list) or len(mounts) > 20:
+                raise ValueError("Lista de volumes inválida em " + key)
+            normalized = []
+            for mount in mounts:
+                if (not isinstance(mount, dict) or
+                        not isinstance(mount.get("source"), str) or not mount["source"] or
+                        not isinstance(mount.get("target"), str) or
+                        not mount["target"].startswith("/") or
+                        mount.get("mode", "rw") not in ("ro", "rw")):
+                    raise ValueError("Montagem inválida em " + key)
+                normalized.append(mount["source"] + ":" + mount["target"] +
+                                  (":ro" if mount.get("mode") == "ro" else ""))
+            service["volumes"] = normalized
         services[key] = service
         names[n["id"]] = key
     if not services:

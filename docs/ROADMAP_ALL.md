@@ -134,3 +134,5 @@ ser convertida em promessa de estabilidade.
 - [x] Central de logs de containers com consulta sob demanda, filtro de texto e exportação TXT; ainda sem stream, armazenamento durável ou pesquisa regex.
 - [x] Botão de pré-visualização do plano de execução antes de modificar o Docker.
 - [x] Testes unitários adicionais para ocultação de instruções sensíveis do histórico de imagens, análise de prune e bindings iniciais da UI.
+
+- [x] Campos básicos de CPU/memória/restart e mounts read-only/read-write expostos tanto no formulário quanto no inspetor visual de containers novos; faltam dispositivos, GPU e edição avançada de mounts.

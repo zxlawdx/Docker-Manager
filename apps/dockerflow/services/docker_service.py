@@ -84,8 +84,14 @@ class DockerService:
             ports[str(b) + "/" + protocol] = a
         volumes = {}
         for v in data.get("volumes", []):
-            if v.get("source") and v.get("target", "").startswith("/"):
-                volumes[v["source"]] = {"bind": v["target"], "mode": "ro" if v.get("read_only") else "rw"}
+            if not isinstance(v, dict) or not isinstance(v.get("source"), str) or not v["source"]:
+                raise ValueError("Origem do volume é obrigatória")
+            if not isinstance(v.get("target"), str) or not v["target"].startswith("/"):
+                raise ValueError("Destino do volume deve ser absoluto")
+            mode = v.get("mode") or ("ro" if v.get("read_only") else "rw")
+            if mode not in ("ro", "rw"):
+                raise ValueError("Modo de montagem inválido")
+            volumes[v["source"]] = {"bind": v["target"], "mode": mode}
         c = self.client.containers.run(
             image, name=data.get("name") or None, detach=True, ports=ports,
             environment=data.get("environment") or {}, volumes=volumes,

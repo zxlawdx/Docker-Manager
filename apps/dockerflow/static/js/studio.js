@@ -165,14 +165,19 @@
         {key:"internal",label:"Porta do container",value:"80"},
         {key:"network",label:"Rede existente (opcional)"},
         {key:"environment",label:'Variáveis JSON, ex.: {"TZ":"UTC"}',value:"{}"},
-        {key:"volumes",label:'Volumes JSON, ex.: [{"source":"dados","target":"/data"}]',value:"[]"}],
+        {key:"volumes",label:'Volumes JSON, ex.: [{"source":"dados","target":"/data"}]',value:"[]"},
+        {key:"cpus",label:"Limite de CPUs (opcional)",value:""},
+        {key:"memory_mb",label:"Limite de memória MiB (opcional)",value:""},
+        {key:"restart",label:"Restart (no/always/unless-stopped/on-failure)",value:"unless-stopped"},
+        {key:"read_only",label:"Filesystem somente leitura? 1=sim, 0=não",value:"0"}],
       confirmText:"Criar"});
     if(!f)return;
     try{
       const environment=JSON.parse(f.environment||"{}"),volumes=JSON.parse(f.volumes||"[]");
       const ports=f.host?[{host:f.host,container:f.internal}]:[];
       await api("/containers/create","POST",
-        {name:f.name,image:f.image,network:f.network,environment,volumes,ports});
+        {name:f.name,image:f.image,network:f.network,environment,volumes,ports,
+         cpus:f.cpus,memory_mb:f.memory_mb,restart:f.restart,read_only:f.read_only==="1"});
       toast("Container criado");await refresh();
     }catch(err){toast(err.message,true);}
   }

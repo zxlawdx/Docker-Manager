@@ -262,3 +262,32 @@ class FrontendBindingTests(unittest.TestCase):
             self.assertIn('id="'+token+'"',template)
         self.assertIn('"df-log-refresh").onclick=fetchLogs',frontend)
         self.assertIn('"df-deploy-preview").onclick=previewPlan',graph)
+
+class VolumesAndLimitsTests(unittest.TestCase):
+    def test_compose_export_preserves_explicit_mounts(self):
+        import yaml
+        graph={"nodes":[{"id":"api","kind":"container","name":"api","image":"nginx:alpine",
+                 "volumes_text":'[{"source":"data","target":"/var/cache","mode":"ro"}]'}],
+               "edges":[]}
+        result=yaml.safe_load(to_compose(graph))
+        self.assertEqual(result["services"]["api"]["volumes"],["data:/var/cache:ro"])
+
+    def test_container_create_respects_mounts_and_resource_limits(self):
+        mock=MagicMock();mock.ping.return_value=True
+        instance=MagicMock();instance.id="container-123"
+        mock.containers.run.return_value=instance
+        svc=DockerService(mock)
+        svc.create_container({"image":"nginx:alpine","cpus":1.5,"memory_mb":256,
+                              "volumes":[{"source":"data","target":"/var/cache","mode":"ro"}],
+                              "restart":"unless-stopped","read_only":True})
+        kwargs=mock.containers.run.call_args.kwargs
+        self.assertEqual(kwargs["nano_cpus"],1500000000)
+        self.assertEqual(kwargs["mem_limit"],256*1048576)
+        self.assertEqual(kwargs["volumes"]["data"]["mode"],"ro")
+        self.assertTrue(kwargs["read_only"])
+
+    def test_container_rejects_invalid_mount_mode(self):
+        svc=DockerService(MagicMock())
+        with self.assertRaisesRegex(ValueError,"montagem"):
+            svc.create_container({"image":"nginx:alpine",
+               "volumes":[{"source":"data","target":"/tmp","mode":"exec"}]})
