@@ -14,6 +14,12 @@
     const world = $("df-world"), stage = $("df-stage"), layer = $("df-nodes");
     const inspector = $("df-inspector-content"), svg = $("df-edges");
     const history=[], future=[];
+    let wireDrag=null,suppressPortClick=false;
+    function graphPoint(clientX,clientY){
+      const rect=stage.getBoundingClientRect();
+      return {x:(clientX-rect.left-state.pan.x)/state.zoom,
+              y:(clientY-rect.top-state.pan.y)/state.zoom};
+    }
     let sourceCompose="";
     function checkpoint(){
       history.push(JSON.stringify({nodes:state.nodes,edges:state.edges,removed:state.removed,
@@ -299,7 +305,8 @@
             (n.internal?'checked':'')+'> Somente interna</span></label>':""))+
         '<div class="df-inspect-value">'+(n.existing?"DOCKER ID "+esc(n.dockerId||""):"RASCUNHO • NÃO CRIADO")+
         '</div>'+(n.kind==="container" && n.existing?
-          '<button class="df-btn df-btn-subtle" data-graph-action="terminal">Abrir terminal ↗</button>':"")+
+          '<button class="df-btn df-btn-subtle" data-graph-action="terminal">Abrir terminal ↗</button>'+
+          '<button class="df-btn df-btn-subtle" data-graph-action="diagnose">Testar rede</button>':"")+
         '<button class="df-btn df-btn-warn" data-graph-action="delete-node">'+
         (n.existing?"Retirar do diagrama":"Excluir bloco")+'</button>'+
         (n.kind==="network" && n.existing && !["bridge","host","none"].includes(n.name)?
@@ -513,7 +520,12 @@
     // Mouse/pointer: nodes arrastáveis e stage com pan independente.
     layer.addEventListener("pointerdown",e=>{
       const port=e.target.closest("[data-port]");
-      if(port){e.preventDefault();e.stopPropagation();return;}
+      if(port){
+        e.preventDefault();e.stopPropagation();
+        wireDrag={id:port.dataset.port,x:e.clientX,y:e.clientY,moved:false};
+        port.setPointerCapture(e.pointerId);
+        return;
+      }
       const el=e.target.closest(".df-graph-node");
       if(!el)return;
       const n=node(el.dataset.id);if(!n)return;
@@ -522,6 +534,20 @@
       el.setPointerCapture(e.pointerId);renderInspector();
     });
     layer.addEventListener("pointermove",e=>{
+      if(wireDrag){
+        if(Math.hypot(e.clientX-wireDrag.x,e.clientY-wireDrag.y)>8)wireDrag.moved=true;
+        if(wireDrag.moved){
+          const from=node(wireDrag.id),end=graphPoint(e.clientX,e.clientY);
+          if(from){
+            svg.querySelector("[data-preview-wire]")?.remove();
+            svg.insertAdjacentHTML("beforeend",
+              '<line data-preview-wire x1="'+(from.x+87)+'" y1="'+(from.y+46)+
+              '" x2="'+end.x+'" y2="'+end.y+'" stroke="#61a47c" stroke-width="2.5"'+
+              ' stroke-dasharray="7 5" pointer-events="none"/>');
+          }
+        }
+        return;
+      }
       if(!state.activeDrag)return;
       const drag=state.activeDrag,n=node(drag.id);
       if(!n)return;
@@ -543,12 +569,31 @@
           '" data-edge="'+esc(edge.id)+'"/>';
       }).join("");
     });
-    layer.addEventListener("pointerup",()=>{if(state.activeDrag){state.activeDrag=null;persistPositions();render();}});
-    layer.addEventListener("pointercancel",()=>{state.activeDrag=null;});
+    layer.addEventListener("pointerup",async e=>{
+      if(wireDrag){
+        const start=wireDrag;wireDrag=null;
+        svg.querySelector("[data-preview-wire]")?.remove();
+        if(start.moved){
+          const dest=document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-port]");
+          suppressPortClick=true;
+          setTimeout(()=>{suppressPortClick=false;},100);
+          if(dest&&dest.dataset.port!==start.id)await connect(start.id,dest.dataset.port);
+          else deps.toast("Solte o cabo sobre o conector de outro bloco.");
+          render();
+        }
+        return;
+      }
+      if(state.activeDrag){state.activeDrag=null;persistPositions();render();}
+    });
+    layer.addEventListener("pointercancel",()=>{
+      wireDrag=null;svg.querySelector("[data-preview-wire]")?.remove();
+      state.activeDrag=null;
+    });
     layer.addEventListener("click",async e=>{
       const port=e.target.closest("[data-port]");
       if(port){
         e.stopPropagation();
+        if(suppressPortClick)return;
         const id=port.dataset.port;
         if(!state.linking){state.linking=id;render();}
         else {const a=state.linking;state.linking=null;await connect(a,id);render();}
@@ -614,6 +659,22 @@
       const n=node(state.selected?.id);
       if(action==="remove-edge"||action==="delete-node")return removeSelected();
       if(action==="terminal"&&n){deps.openTerminal(n.dockerId);}
+      if(action==="diagnose"&&n){
+        const others=state.nodes.filter(item=>item.kind==="container"&&item.existing&&item.id!==n.id);
+        if(!others.length)return deps.toast("Importe outro container existente para diagnosticar.",true);
+        const answer=await deps.ask({title:"Network Inspector",
+          fields:[{key:"target",label:"Destino (nome do container)",value:others[0].name}],
+          confirmText:"Testar conexão"});
+        if(answer){
+          const other=others.find(item=>item.name===answer.target||item.dockerId===answer.target);
+          if(!other)return deps.toast("Container de destino não encontrado",true);
+          try{
+            const diagnostic=await deps.api("/diagnostics/connectivity","POST",
+              {source:n.dockerId,target:other.dockerId});
+            deps.showOutput("Diagnóstico de rede",JSON.stringify(diagnostic,null,2));
+          }catch(error){deps.toast(error.message,true);}
+        }
+      }
       if(action==="delete-network"&&n){
         const yes=await deps.ask({title:"Excluir rede Docker?",
           description:"A rede será excluída de verdade e não poderá conter containers ativos.",fields:[]});
