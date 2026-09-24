@@ -113,3 +113,8 @@ def compose_run(context):
 @api.post("/graph/compose")
 def graph_compose(context):
     return safe(lambda: {"content": to_compose(body(context))})
+
+@api.post("/compose/dockerfile")
+def compose_dockerfile(context):
+    data = body(context)
+    return safe(compose.save_dockerfile, data.get("name"), data.get("content"))
