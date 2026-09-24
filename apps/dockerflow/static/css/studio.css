@@ -257,3 +257,10 @@
 #dockerflow-root .df-editor-tab:hover {background:#e9f5ea}
 #dockerflow-root .df-editor-tab.active {border-color:#3e8e5b;color:#2a7550}
 #dockerflow-root .df-dockerfile-actions {border-top:1px solid #e4ede4;padding-top:14px;margin-top:12px}
+
+#dockerflow-root #df-inspector-content {overflow-y:auto;overflow-x:hidden;flex:1;min-height:0}
+#dockerflow-root .df-inspect-card textarea {width:100%;min-height:78px;resize:vertical;
+  font:10px/1.55 ui-monospace,monospace;color:#34583e;border:1px solid #dae7dc;
+  border-radius:9px;padding:9px;background:white}
+#dockerflow-root .df-inspect-card .df-field select {width:100%;border:1px solid #dae7dc;
+  border-radius:9px;background:white;color:#34583e;padding:9px}
