@@ -29,6 +29,41 @@
     }
     return result;
   }
+  // A aparência é exclusivamente local: nenhum cookie, sincronização ou API.
+  const appearanceKey="dockerflow.appearance";
+  let appearance="system", appearanceListener=null;
+  const prefersDark=window.matchMedia?window.matchMedia("(prefers-color-scheme: dark)"):null;
+  function resolveAppearance(){
+    const root=$("dockerflow-root");if(!root)return;
+    const dark=appearance==="dark"||(appearance==="system"&&!!prefersDark?.matches);
+    root.dataset.theme=dark?"dark":"light";
+    root.style.colorScheme=dark?"dark":"light";
+    const button=$("df-theme-toggle"),label=$("df-theme-label");
+    const name={system:"Sistema",light:"Claro",dark:"Escuro"}[appearance];
+    if(button){
+      button.setAttribute("aria-label","Tema atual: "+name+". Alternar aparência");
+      button.setAttribute("aria-pressed",appearance==="dark"?"true":"false");
+      button.title="Tema: "+name+" · alternar entre sistema, claro e escuro";
+    }
+    if(label)label.textContent=name;
+  }
+  function setupAppearance(){
+    try{
+      const saved=localStorage.getItem(appearanceKey);
+      if(["system","light","dark"].includes(saved))appearance=saved;
+    }catch(_){appearance="system";}
+    resolveAppearance();
+    $("df-theme-toggle").onclick=()=>{
+      appearance={system:"light",light:"dark",dark:"system"}[appearance];
+      try{localStorage.setItem(appearanceKey,appearance);}catch(_){}
+      resolveAppearance();
+    };
+    if(prefersDark&&!appearanceListener){
+      appearanceListener=()=>{if(appearance==="system")resolveAppearance();};
+      if(prefersDark.addEventListener)prefersDark.addEventListener("change",appearanceListener);
+      else if(prefersDark.addListener)prefersDark.addListener(appearanceListener);
+    }
+  }
   function toast(message,error=false){
     const box=$("df-notify"),item=document.createElement("div");
     item.className="df-toast"+(error?" error":"");item.textContent=message;box.appendChild(item);
@@ -637,7 +672,7 @@
   async function mount(){
     if(app.mounted)return;
     if(!$("dockerflow-root"))return;
-    app.mounted=true;bind();navigate("graph");
+    app.mounted=true;setupAppearance();bind();navigate("graph");
     app.graph=window.DockerGraph({api,toast,ask,setYaml,navigate,refresh,download,openTerminal,showOutput});
     await refresh();
     if(app.overview.online){
@@ -647,6 +682,11 @@
   }
   function dispose(){
     app.mounted=false;
+    if(prefersDark&&appearanceListener){
+      if(prefersDark.removeEventListener)prefersDark.removeEventListener("change",appearanceListener);
+      else if(prefersDark.removeListener)prefersDark.removeListener(appearanceListener);
+      appearanceListener=null;
+    }
     if(app.pollTimer)clearInterval(app.pollTimer);
     app.pollTimer=null;
     if(app.terminal)api("/terminal/close","POST",{session:app.terminal}).catch(()=>{});
