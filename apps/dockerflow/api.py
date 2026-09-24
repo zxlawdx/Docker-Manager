@@ -14,6 +14,7 @@ from .services import audit_service
 from .services import graph_project_service as graph_projects_service
 from .services import diagnostic_service
 from .services import template_catalog
+from .services.admin_service import admin_service
 
 def safe(fn, *args):
     """Falhas de domínio geram respostas HTTP corretas, não '200 com erro'."""
@@ -46,6 +47,19 @@ def templates_list():
 @api.post("/templates/compose")
 def templates_compose(context):
     return safe(template_catalog.render_template, body(context).get("id"))
+
+
+@api.get("/admin/containers/preview")
+def admin_container_preview():
+    return safe(admin_service.preview)
+
+
+@api.post("/admin/containers/remove-all")
+def admin_container_remove_all(context):
+    data = body(context)
+    return safe(tasks.submit, "Admin: remoção com autorização polkit",
+                admin_service.remove_all, data.get("fingerprint"),
+                data.get("confirmation"))
 
 
 @api.get("/overview")

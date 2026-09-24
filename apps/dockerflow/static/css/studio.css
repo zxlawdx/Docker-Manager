@@ -456,3 +456,17 @@
 #dockerflow-root[data-theme="dark"] .df-zone-mode .df-network-zone .df-node-body {background:#395b43}
 #dockerflow-root[data-theme="dark"] .df-zone-help {color:#c4e6ca;border-color:#5b8e68}
 #dockerflow-root[data-theme="dark"] .df-zone-memberships span {background:#35583d;color:#d3f2d8}
+
+/* Painel administrativo: consequências visíveis e confirmação externa do SO. */
+#dockerflow-root .df-admin-card {border-color:#dfb5ab;max-width:890px}
+#dockerflow-root .df-admin-card .df-card-header {background:#fff4f0;color:#9c4336}
+#dockerflow-root .df-admin-content {padding:23px;display:flex;flex-direction:column;gap:14px}
+#dockerflow-root .df-admin-content p {line-height:1.75;font-size:12px;color:var(--df-ink)}
+#dockerflow-root .df-admin-content code {font:11px/1.6 ui-monospace,monospace}
+#dockerflow-root .df-admin-result {border:1px solid var(--df-line);padding:14px;
+ border-radius:9px;max-height:320px;overflow:auto;font-size:11px;line-height:1.7}
+#dockerflow-root .df-admin-container-list {display:grid;gap:7px;max-height:270px;overflow:auto}
+#dockerflow-root .df-admin-container-list div {border-bottom:1px solid var(--df-line);padding:4px 0;overflow-wrap:anywhere}
+#dockerflow-root[data-theme="dark"] .df-admin-card {border-color:#865e59}
+#dockerflow-root[data-theme="dark"] .df-admin-card .df-card-header {background:#50352f;color:#ffd2ca}
+#dockerflow-root[data-theme="dark"] .df-admin-result {background:#1c3024}

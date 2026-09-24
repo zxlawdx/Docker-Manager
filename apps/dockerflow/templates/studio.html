@@ -12,7 +12,7 @@
       <button class="df-nav-item" data-page="audit"><span class="df-icon">♢</span> Auditoria</button>
       <button class="df-nav-item" data-page="monitor"><span class="df-icon">▥</span> Monitoramento</button>
       <button class="df-nav-item" data-page="networks"><span class="df-icon">◉</span> Redes</button>
-      <button class="df-nav-item" data-page="volumes"><span class="df-icon">◈</span> Volumes</button>
+      <button class="df-nav-item" data-page="volumes"><span class="df-icon">◈</span> Volumes</button><button class="df-nav-item" data-page="admin"><span class="df-icon">♙</span> Administração <em>RISCO</em></button>
     </nav>
     <div class="df-rail-group df-rail-gap">DESENVOLVIMENTO</div>
     <nav>
@@ -102,6 +102,27 @@
     </section>
     <section class="df-page" data-content="volumes" hidden>
       <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / VOLUMES</p><h1>Volumes & persistência</h1><p>Armazenamento de dados gerenciado pelo Docker.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-volume-orphans">Volumes órfãos</button><button class="df-btn df-btn-primary" id="df-volume-new">+ Novo volume</button></div></div><div class="df-card"><div class="df-card-header"><strong>Volumes locais</strong></div><div id="df-volume-list"></div></div>
+    </section>
+
+    <section class="df-page" data-content="admin" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">OPERAÇÕES SENSÍVEIS / ADMIN</p>
+        <h1>Administração do Docker local</h1>
+        <p>Para Linux com agente polkit instalado. A senha é solicitada pelo sistema operacional, nunca por esta interface.</p>
+      </div></div>
+      <div class="df-card df-admin-card">
+        <div class="df-card-header"><strong>Zona de risco · Remover todos os containers</strong></div>
+        <div class="df-admin-content">
+          <p>Esta operação força a remoção de containers em execução e parados no socket
+            <code>unix:///var/run/docker.sock</code>. Os volumes nomeados não serão removidos.
+            Dados guardados somente dentro do container podem ser perdidos definitivamente.</p>
+          <p>O DockerFlow exige uma prévia atualizada, digitar <strong>APAGAR TODOS</strong>
+            e aprovar a janela nativa <strong>polkit/pkexec</strong>. Não existe modo silencioso ou
+            alternativa automática caso a autorização falhe.</p>
+          <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-admin-scan">↻ Verificar containers locais</button>
+            <button class="df-btn df-btn-warn" id="df-admin-purge" disabled>Remover todos · autorização SO</button></div>
+          <div id="df-admin-preview" aria-live="polite" class="df-admin-result">Faça uma prévia para habilitar a operação.</div>
+        </div>
+      </div>
     </section>
 
     <section class="df-page df-ide-page" data-content="ide" hidden>

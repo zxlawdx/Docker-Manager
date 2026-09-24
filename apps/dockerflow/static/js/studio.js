@@ -8,9 +8,10 @@
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
     terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
   const terminalHistory=[];let terminalHistoryCursor=0;
+  let adminPreview=null;
   let highlightedPreview=false;
   const titles={overview:"Visão geral",graph:"Laboratório visual",
-    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",audit:"Auditoria",logs:"Logs",ide:"Compose IDE",terminal:"Terminal Docker"};
+    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",audit:"Auditoria",logs:"Logs",ide:"Compose IDE",terminal:"Terminal Docker",admin:"Administração"};
 
   async function api(path,method="GET",payload=null){
     const opts={method,headers:{"Accept":"application/json",
@@ -129,6 +130,7 @@
     if(page==="logs")loadLogContainers();
     if(page==="terminal")refreshTerminalList();
     if(page==="ide"){listProjects();refreshEditorVisual();}
+    if(page==="admin")loadAdminPreview();
   }
   function setYaml(text){$("df-yaml").value=text;switchEditor("compose");}
   async function loadTemplateCatalog(){
@@ -171,6 +173,50 @@
   function rowButton(action,label,id,extra=""){
     return '<button class="df-mini-btn '+esc(extra)+'" data-action="'+esc(action)+'" data-id="'+esc(id)+
       '">'+esc(label)+'</button>';
+  }
+  async function loadAdminPreview(){
+    adminPreview=null;
+    $("df-admin-purge").disabled=true;
+    $("df-admin-preview").textContent="Conferindo o Docker Engine local...";
+    try{
+      const result=await api("/admin/containers/preview");
+      adminPreview=result;
+      if(!result.count){
+        $("df-admin-preview").textContent="Nenhum container no Engine local.";
+        return;
+      }
+      $("df-admin-preview").innerHTML='<p><strong>'+esc(result.count)+
+        ' container(s)</strong> no Engine local. Ação exclusivamente neste host.</p>'+
+        '<div class="df-admin-container-list">'+result.containers.map(c=>
+          '<div><code>'+esc(c.id)+'</code> '+esc(c.name)+'</div>').join("")+
+        (result.truncated?'<p>Lista parcial; a operação inclui todos os IDs da prévia.</p>':"")+'</div>';
+      $("df-admin-purge").disabled=false;
+    }catch(err){
+      $("df-admin-preview").textContent="Não foi possível abrir a administração: "+err.message+
+        ". Disponível somente em Linux normal com socket local.";
+    }
+  }
+  async function removeAllAdmin(){
+    if(!adminPreview?.count)return toast("Atualize a prévia primeiro.",true);
+    const current=adminPreview;adminPreview=null;$("df-admin-purge").disabled=true;
+    const response=await ask({title:"CONFIRMAÇÃO DESTRUTIVA",
+      description:"Remover TODOS os "+current.count+" containers locais, inclusive os em execução? "+
+        "Volumes nomeados permanecem. A autorização de root será exibida PELO SISTEMA via polkit. "+
+        "Digite APAGAR TODOS para prosseguir.",
+      fields:[{key:"confirmation",label:"Digite APAGAR TODOS",value:""}],
+      confirmText:"Solicitar autorização do SO"});
+    if(!response){await loadAdminPreview();return;}
+    if(response.confirmation!=="APAGAR TODOS"){
+      toast("A frase deve ser exatamente APAGAR TODOS.",true);await loadAdminPreview();return;
+    }
+    try{
+      toast("Solicitando a janela de autorização nativa polkit...");
+      const result=await api("/admin/containers/remove-all","POST",
+        {fingerprint:current.fingerprint,confirmation:response.confirmation});
+      toast(result.message||"Concluído",!result.ok);
+      $("df-admin-preview").textContent=JSON.stringify(result,null,2);
+    }catch(err){toast("Administração: "+err.message,true);}
+    finally{await loadAdminPreview();await refresh();}
   }
   async function loadContainers(){
     try {
@@ -624,6 +670,8 @@
     document.querySelectorAll("[data-nav]").forEach(el=>el.addEventListener("click",()=>navigate(el.dataset.nav)));
     $("df-refresh").onclick=refresh;
     $("df-new-container").onclick=createContainer;
+    $("df-admin-scan").onclick=loadAdminPreview;
+    $("df-admin-purge").onclick=removeAllAdmin;
     $("df-image-pull").onclick=pullImage;
     $("df-volume-new").onclick=newVolume;
     $("df-network-create").onclick=createNetwork;
