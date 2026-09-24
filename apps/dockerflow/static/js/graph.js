@@ -150,7 +150,7 @@
       if (na.kind==="container"&&nb.kind==="container") {
         const out=await deps.ask({title:"Compartilhar uma rede",
           description:"A ligação de dois containers no Docker é representada por uma rede bridge. Qual nome dar a ela?",
-          fields:[{key:"name",label:"Rede nova",value:"rede-"+na.name+"-"+nb.name"}]});
+          fields:[{key:"name",label:"Rede nova",value:"rede-"+na.name+"-"+nb.name}]});
         if(!out) return;
         const name=out.name.trim();
         if(!name || state.nodes.some(n=>n.kind==="network"&&n.name===name))
@@ -373,7 +373,7 @@
       // Também funciona no WebView sem suporte consistente ao dragstart.
       el.addEventListener("dblclick",()=>addDraft(el.dataset.kind,150+Math.random()*130,90+Math.random()*160));
     });
-    inspector.addEventListener("input",e=>{
+    inspector.addEventListener("change",e=>{
       const n=node(state.selected?.id);
       if(!n||n.existing)return;
       if(e.target.dataset.edit){n[e.target.dataset.edit]=e.target.value;render();}
