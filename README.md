@@ -74,3 +74,8 @@ tests/test_dockerflow.py
 ~~~
 
 Consulte [auditoria técnica, limitações, comparativo do projeto original e roadmap](docs/DOCKER_GAP_ANALYSIS.md) para a lista completa. Alterações sequenciais do diagrama **não são atômicas**; se uma etapa falhar, atualize a topologia antes de tentar novamente.
+
+
+## Desenvolvimento e escopo
+
+Consulte o [roteiro completo de funcionalidades, pendências e limites](docs/ROADMAP_ALL.md). A migração Vela permanece na PR #2; não considere os recursos experimentais liberados para produção até concluir a validação.

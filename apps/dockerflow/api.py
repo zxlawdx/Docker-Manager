@@ -14,11 +14,24 @@ from .services import graph_project_service as graph_projects_service
 from .services import diagnostic_service
 
 def safe(fn, *args):
+    """Falhas de domínio geram respostas HTTP corretas, não '200 com erro'."""
+    from docker.errors import DockerException, NotFound
     try:
         return fn(*args)
-    except (Exception,) as exc:
-        # Envelope explícito: Vela 0.2.2 devolve dict sempre com HTTP 200.
-        return {"error": str(exc), "type": type(exc).__name__}
+    except (ValueError, TypeError, KeyError) as exc:
+        code, message = 400, str(exc)
+    except PermissionError as exc:
+        code, message = 403, str(exc)
+    except NotFound:
+        code, message = 404, "Recurso Docker não encontrado."
+    except DockerException as exc:
+        code, message = 502, "Docker Engine: " + str(exc)
+    except Exception:
+        # Não serializar tracebacks nem variáveis sensíveis no navegador.
+        code, message = 500, "Falha interna do DockerFlow; consulte os logs locais."
+    return HTTPResponse(
+        body=json.dumps({"error": message, "status": code}, ensure_ascii=False),
+        status=code, headers={"Content-Type": "application/json"})
 
 def body(context):
     return context.get("json") or {}
