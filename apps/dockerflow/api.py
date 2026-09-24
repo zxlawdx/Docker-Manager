@@ -13,6 +13,7 @@ from .services import monitor_service
 from .services import audit_service
 from .services import graph_project_service as graph_projects_service
 from .services import diagnostic_service
+from .services import template_catalog
 
 def safe(fn, *args):
     """Falhas de domínio geram respostas HTTP corretas, não '200 com erro'."""
@@ -36,6 +37,16 @@ def safe(fn, *args):
 
 def body(context):
     return context.get("json") or {}
+
+@api.get("/templates")
+def templates_list():
+    return safe(template_catalog.list_templates)
+
+
+@api.post("/templates/compose")
+def templates_compose(context):
+    return safe(template_catalog.render_template, body(context).get("id"))
+
 
 @api.get("/overview")
 def overview():
