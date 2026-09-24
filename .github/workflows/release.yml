@@ -1,0 +1,153 @@
+name: DockerFlow release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag existente, ex.: v0.2.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dockerflow-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install and test (isolated venv)
+        run: |
+          python -m venv .venv-build
+          .venv-build/bin/python -m pip install -U pip wheel setuptools
+          .venv-build/bin/python -m pip install -r requirements.txt
+          grep -i "include-system-site-packages = false" .venv-build/pyvenv.cfg
+          .venv-build/bin/python -m compileall -q apps config tests manage.py
+          .venv-build/bin/python -m unittest discover -s tests -v
+          node --check apps/dockerflow/static/js/graph.js
+          node --check apps/dockerflow/static/js/studio.js
+          .venv-build/bin/python manage.py collectstatic --no-tailwind
+          test -f staticfiles/dockerflow/js/graph.js
+          test -f staticfiles/dockerflow/js/studio.js
+
+  linux:
+    if: github.event_name != 'pull_request'
+    needs: tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Qt6 native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libegl1 libnss3 libgbm1 libxcb-cursor0 libxkbcommon-x11-0 libx11-xcb1 zip
+      - name: Build with Vela (isolated Qt6, no system site-packages)
+        run: |
+          python -m venv .venv-build
+          .venv-build/bin/python -m pip install -U pip wheel setuptools
+          .venv-build/bin/python -m pip install -r requirements-build.txt
+          .venv-build/bin/python -m pip check
+          grep -i "include-system-site-packages = false" .venv-build/pyvenv.cfg
+          .venv-build/bin/python manage.py collectstatic --no-tailwind
+          .venv-build/bin/python manage.py buildapp --gui qt6 --installer
+      - name: Self test binary and resources
+        run: |
+          test -f dist/DockerFlow/DockerFlow
+          test -f dist/DockerFlow/apps/dockerflow/templates/studio.html
+          test -f dist/DockerFlow/staticfiles/dockerflow/js/graph.js
+          ./dist/DockerFlow/DockerFlow --self-test
+      - name: ZIP + SHA256
+        run: |
+          cd dist
+          zip -qr "DockerFlow-Linux-x86_64-$RELEASE_TAG.zip" DockerFlow
+          sha256sum "DockerFlow-Linux-x86_64-$RELEASE_TAG.zip" > "DockerFlow-Linux-x86_64-$RELEASE_TAG.zip.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DockerFlow-Linux-${{ env.RELEASE_TAG }}
+          path: |
+            dist/DockerFlow-Linux-x86_64-${{ env.RELEASE_TAG }}.zip
+            dist/DockerFlow-Linux-x86_64-${{ env.RELEASE_TAG }}.zip.sha256
+          if-no-files-found: error
+
+  windows:
+    if: github.event_name != 'pull_request'
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build Vela / Qt6 in isolated venv
+        shell: pwsh
+        run: |
+          python -m venv .venv-build
+          .\.venv-build\Scripts\python.exe -m pip install -U pip wheel setuptools
+          .\.venv-build\Scripts\python.exe -m pip install -r requirements-build.txt
+          .\.venv-build\Scripts\python.exe -m pip check
+          .\.venv-build\Scripts\python.exe manage.py collectstatic --no-tailwind
+          .\.venv-build\Scripts\python.exe manage.py buildapp --gui qt6 --installer
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist/DockerFlow/DockerFlow.exe")) { throw "Missing exe" }
+          if (!(Test-Path "dist/DockerFlow/staticfiles/dockerflow/js/studio.js")) { throw "Missing statics" }
+          .\dist\DockerFlow\DockerFlow.exe --self-test
+      - name: ZIP + SHA256
+        shell: pwsh
+        run: |
+          $zip = "dist/DockerFlow-Windows-x86_64-$env:RELEASE_TAG.zip"
+          Compress-Archive -Path "dist/DockerFlow" -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $zip -Leaf)" | Set-Content "$zip.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DockerFlow-Windows-${{ env.RELEASE_TAG }}
+          path: |
+            dist/DockerFlow-Windows-x86_64-${{ env.RELEASE_TAG }}.zip
+            dist/DockerFlow-Windows-x86_64-${{ env.RELEASE_TAG }}.zip.sha256
+          if-no-files-found: error
+
+  release:
+    if: github.event_name != 'pull_request'
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish tag release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 --repo "$GITHUB_REPOSITORY" --title "DockerFlow $RELEASE_TAG" --generate-notes
+          fi
