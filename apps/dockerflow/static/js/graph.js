@@ -682,9 +682,9 @@
       state.selected={type:"node",id:n.id};
       state.activeDrag={id:n.id,clientX:e.clientX,clientY:e.clientY,
         positions:state.nodes.filter(x=>selectedNodes.has(x.id)).map(x=>({id:x.id,x:x.x,y:x.y}))};
-      el.setPointerCapture(e.pointerId);renderInspector();
+      stage.setPointerCapture(e.pointerId);renderInspector();
     });
-    layer.addEventListener("pointermove",e=>{
+    stage.addEventListener("pointermove",e=>{
       if(wireDrag){
         if(Math.hypot(e.clientX-wireDrag.x,e.clientY-wireDrag.y)>8)wireDrag.moved=true;
         if(wireDrag.moved){
@@ -724,7 +724,7 @@
           '" data-edge="'+esc(edge.id)+'"/>';
       }).join("");
     });
-    layer.addEventListener("pointerup",async e=>{
+    stage.addEventListener("pointerup",async e=>{
       if(wireDrag){
         const start=wireDrag;wireDrag=null;
         svg.querySelector("[data-preview-wire]")?.remove();
@@ -739,13 +739,14 @@
         return;
       }
       if(state.activeDrag){
+        if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);
         if(snapEnabled)state.activeDrag.positions.forEach(p=>{
           const item=node(p.id);if(item){item.x=snap(item.x);item.y=snap(item.y);}
         });
         state.activeDrag=null;persistPositions();render();
       }
     });
-    layer.addEventListener("pointercancel",()=>{
+    stage.addEventListener("pointercancel",()=>{
       wireDrag=null;svg.querySelector("[data-preview-wire]")?.remove();
       state.activeDrag=null;
     });
@@ -784,7 +785,7 @@
       transform();
     });
     stage.addEventListener("pointerup",e=>{
-      if(state.origin){state.origin=null;stage.releasePointerCapture(e.pointerId);}
+      if(state.origin){state.origin=null;if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);}
     });
     stage.addEventListener("pointercancel",()=>{state.origin=null;});
     stage.addEventListener("wheel",e=>{
