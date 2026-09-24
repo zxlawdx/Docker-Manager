@@ -17,6 +17,9 @@
     let wireDrag=null,suppressPortClick=false;
     const selectedNodes=new Set();
     let clipboard=null,searchTerm="";
+    let networkView="lines";
+    try {if(localStorage.getItem("dockerflow.network.view")==="zones")networkView="zones";}catch(_){}
+    const ZONE_WIDTH=370,ZONE_HEIGHT=250;
     let snapEnabled=true;
     try{snapEnabled=localStorage.getItem("dockerflow.graph.snap")!=="false";}catch(_){}
     const snap=(number)=>snapEnabled?Math.round(number/20)*20:Math.round(number);
@@ -54,6 +57,67 @@
       clipboard.nodes.forEach(n=>{n.x+=40;n.y+=40;});
       render();persistPositions();
       deps.toast("Cópia adicionada ao rascunho. Revise nomes e portas antes de aplicar.");
+    }
+    function zoneHeight(n){
+      return Math.max(ZONE_HEIGHT,120+Math.ceil(state.edges.filter(e=>e.source===n.id).length/2)*114);
+    }
+    function arrangeZones(){
+      if(!state.nodes.length)return render();
+      checkpoint();
+      const networks=state.nodes.filter(n=>n.kind==="network").sort((a,b)=>a.name.localeCompare(b.name));
+      let top=50;
+      for(let i=0;i<networks.length;i+=2){
+        const row=networks.slice(i,i+2);
+        row.forEach((net,col)=>{net.zoneHeight=zoneHeight(net);net.x=40+col*470;net.y=top;});
+        top+=Math.max(...row.map(n=>n.zoneHeight))+90;
+      }
+      const placed=new Set();
+      networks.forEach(net=>{
+        let slot=0;
+        state.edges.filter(e=>e.source===net.id).forEach(e=>{
+          const c=node(e.target);
+          if(!c||placed.has(c.id))return;
+          c.x=net.x+12+(slot%2)*176;c.y=net.y+98+Math.floor(slot/2)*114;
+          slot++;placed.add(c.id);
+        });
+      });
+      let orphan=0;
+      state.nodes.filter(n=>n.kind==="container"&&!placed.has(n.id)).forEach(n=>{
+        n.x=60+(orphan%4)*202;n.y=top+30+Math.floor(orphan/4)*125;orphan++;
+      });
+      state.pan={x:24,y:24};state.zoom=.83;persistPositions();render();
+    }
+    function setNetworkView(view,rearrange=false){
+      networkView=view==="zones"?"zones":"lines";
+      stage.classList.toggle("df-zone-mode",networkView==="zones");
+      $("df-network-view").value=networkView;
+      $("df-stage-hint").textContent=networkView==="zones"?
+        "Arraste o container para dentro da rede. Associação pendente até clicar Aplicar.":
+        "Arraste cartões para mover; conectores para ligar. Shift seleciona múltiplos.";
+      try{localStorage.setItem("dockerflow.network.view",networkView);}catch(_){}
+      if(rearrange&&networkView==="zones")arrangeZones();else render();
+    }
+    function zoneAt(x,y){
+      return state.nodes.filter(n=>n.kind==="network").reverse().find(n=>
+        x>=n.x&&x<=n.x+ZONE_WIDTH&&y>=n.y&&y<=n.y+(n.zoneHeight||ZONE_HEIGHT));
+    }
+    function attachByDrop(ids,clientX,clientY){
+      if(networkView!=="zones")return;
+      const p=graphPoint(clientX,clientY),zone=zoneAt(p.x,p.y);
+      if(!zone)return;
+      let count=0;
+      ids.forEach(id=>{const c=node(id);
+        if(c?.kind==="container"&&normalizeEdge(zone.id,c.id,false))count++;
+      });
+      if(count)deps.toast(count+" ligação(ões) planejada(s) para "+zone.name+". Revise e clique Aplicar.");
+    }
+    async function importAllRelations(){
+      try{
+        const imported=await importDocker();
+        if(!imported)return;
+        if(networkView!=="zones")autoLayout();
+        deps.toast("Todas as relações do Docker foram importadas para edição visual.");
+      }catch(e){deps.toast(e.message,true);}
     }
     function autoLayout(){
       if(!state.nodes.length)return;
@@ -282,24 +346,36 @@
     function clearSelection() {state.selected=null; render();}
     function render() {
       transform();
-      layer.innerHTML = state.nodes.map(n => {
-        const selected=selectedNodes.has(n.id)||(state.selected && state.selected.type==="node" && state.selected.id===n.id);
-        const dimmed=searchTerm&&!((n.name||"")+" "+(n.image||"")+" "+(n.driver||"")).toLocaleLowerCase("pt-BR").includes(searchTerm);
+      // Renderizar zonas antes dos containers para preservar hit-testing do arraste.
+      layer.innerHTML = [...state.nodes].sort((a,b)=>Number(a.kind==="container")-Number(b.kind==="container")).map(n=>{
+        const selected=selectedNodes.has(n.id)||
+          (state.selected&&state.selected.type==="node"&&state.selected.id===n.id);
+        const dimmed=searchTerm&&!((n.name||"")+" "+(n.image||"")+" "+(n.driver||""))
+          .toLocaleLowerCase("pt-BR").includes(searchTerm);
+        const zone=n.kind==="network"&&networkView==="zones";
         const symbol=n.kind==="network"?"⌘":"⬡";
-        const meta=n.kind==="network"?(n.driver||"bridge")+" · Docker network":
-          (n.image||"Imagem não definida");
-        const status=n.kind==="network"?
-          (n.existing?"Rede existente":"Nova rede planejada"):
-          (n.existing?(n.status||"desconhecido"):"Container planejado");
-        return '<article class="df-graph-node '+esc(n.kind)+(n.existing?'':' draft')+
-          (selected?' selected':'')+(dimmed?' df-dimmed':'')+'" data-id="'+esc(n.id)+'" style="left:'+Number(n.x)+
-          'px;top:'+Number(n.y)+'px"><div class="df-node-bar"></div><div class="df-node-body">'+
-          '<div class="df-node-top"><span class="df-node-symbol">'+symbol+'</span><div style="min-width:0">'+
-          '<div class="df-node-title" title="'+esc(n.name)+'">'+esc(n.name)+'</div>'+
-          '<div class="df-node-meta" title="'+esc(meta)+'">'+esc(meta)+'</div></div></div>'+
-          '<div class="df-node-status">'+esc(status)+'</div></div>'+
-          '<button class="df-port'+(state.linking===n.id?' armed':'')+
-          '" title="Conectar a outro bloco" data-port="'+esc(n.id)+'"></button></article>';
+        const meta=n.kind==="network"?(n.driver||"bridge")+" · rede":n.image||"Imagem não definida";
+        const status=n.kind==="network"?(n.existing?"Rede existente":"Rede planejada"):
+          n.existing?(n.status||"desconhecido"):"Container planejado";
+        const memberships=n.kind==="container"&&networkView==="zones"?
+          state.edges.filter(e=>e.target===n.id).map(e=>node(e.source)?.name).filter(Boolean):[];
+        const badges=memberships.length?'<div class="df-zone-memberships">'+
+          memberships.map(name=>'<span>'+esc(name)+'</span>').join("")+'</div>':"";
+        return '<article class="df-graph-node '+(zone?'df-network-zone ':'')+
+          esc(n.kind)+(n.existing?'':' draft')+(selected?' selected':'')+
+          (dimmed?' df-dimmed':'')+'" data-id="'+esc(n.id)+
+          '" style="left:'+Number(n.x)+'px;top:'+Number(n.y)+'px'+
+          (zone?';height:'+Number(n.zoneHeight||ZONE_HEIGHT)+'px':'')+
+          '"><div class="df-node-bar"></div><div class="df-node-body"'+
+          (zone?' data-zone-handle="true"':'')+'>'+
+          '<div class="df-node-top"><span class="df-node-symbol">'+symbol+
+          '</span><div style="min-width:0"><div class="df-node-title" title="'+esc(n.name)+'">'+
+          esc(n.name)+'</div><div class="df-node-meta" title="'+esc(meta)+'">'+
+          esc(meta)+'</div></div></div><div class="df-node-status">'+esc(status)+'</div>'+
+          (zone?'<div class="df-zone-help">Solte containers aqui · '+
+            state.edges.filter(e=>e.source===n.id).length+' associado(s)</div>':"")+
+          badges+'</div><button class="df-port'+(state.linking===n.id?' armed':'')+
+          '" title="Conectar blocos" data-port="'+esc(n.id)+'"></button></article>';
       }).join("");
       svg.innerHTML=state.edges.map(e=>{
         const a=node(e.source),b=node(e.target);
