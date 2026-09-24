@@ -7,6 +7,8 @@
     c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
     terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
+  const terminalHistory=[];let terminalHistoryCursor=0;
+  let highlightedPreview=false;
   const titles={overview:"Visão geral",graph:"Laboratório visual",
     containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",audit:"Auditoria",logs:"Logs",ide:"Compose IDE",terminal:"Terminal Docker"};
 
@@ -489,11 +491,34 @@
     go: 'FROM golang:1.24-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN go build -o /server .\nFROM alpine:latest\nCOPY --from=build /server /server\nCMD ["/server"]\n',
     postgres: 'FROM postgres:16-alpine\nENV POSTGRES_DB=mydb\nEXPOSE 5432\n'
   };
+  // Prévia isolada sem CDN: o texto é escapado ANTES dos spans coloridos.
+  // Editar sempre no textarea; o preview é explicitamente somente leitura.
+  function syntaxLine(line,dockerfile){
+    if(/^\s*#/.test(line))return '<span class="df-syntax-comment">'+esc(line)+'</span>';
+    if(dockerfile){
+      const m=line.match(/^(\s*)(FROM|RUN|COPY|ADD|CMD|ENTRYPOINT|EXPOSE|WORKDIR|ENV|ARG|LABEL|USER|HEALTHCHECK|SHELL|VOLUME)(\b)(.*)$/i);
+      return m?esc(m[1])+'<span class="df-syntax-key">'+esc(m[2])+'</span>'+esc(m[3]+m[4]):esc(line);
+    }
+    const m=line.match(/^(\s*)([a-zA-Z0-9_.-]+)(\s*:)(.*)$/);
+    return m?esc(m[1])+'<span class="df-syntax-key">'+esc(m[2])+'</span>'+
+      '<span class="df-syntax-colon">'+esc(m[3])+'</span>'+esc(m[4]):esc(line);
+  }
+  function refreshEditorVisual(){
+    const active=$((app.editorMode==="dockerfile")?"df-dockerfile":"df-yaml");
+    const text=active.value,dockerfile=app.editorMode==="dockerfile";
+    $("df-editor-lines").textContent=Array.from({length:Math.min(text.split("\n").length,6000)},
+      (_,i)=>String(i+1)).join("\n");
+    $("df-editor-preview").innerHTML=text.split("\n").map(s=>syntaxLine(s,dockerfile)).join("\n");
+    $("df-editor-lines").scrollTop=active.scrollTop;
+    $("df-editor-preview").scrollTop=active.scrollTop;
+  }
   function switchEditor(mode) {
     app.editorMode = mode === "dockerfile" ? "dockerfile" : "compose";
     const dockerfile = app.editorMode === "dockerfile";
-    $("df-yaml").hidden=dockerfile;
-    $("df-dockerfile").hidden=!dockerfile;
+    $("df-yaml").hidden=dockerfile||highlightedPreview;
+    $("df-dockerfile").hidden=!dockerfile||highlightedPreview;
+    $("df-editor-preview").hidden=!highlightedPreview;
+    refreshEditorVisual();
     $("df-editor-mode").textContent=dockerfile?"DOCKERFILE · UTF-8":"YAML · UTF-8";
     document.querySelectorAll("[data-editor]").forEach(el=>
       el.classList.toggle("active",el.dataset.editor===app.editorMode));
@@ -662,7 +687,7 @@
       if($("df-dockerfile").value.trim() &&
         !(await confirmed("Substituir Dockerfile?",
           "O conteúdo atual será substituído pelo template selecionado.","Substituir")))return;
-      $("df-dockerfile").value=snippets[name]||"";
+      $("df-dockerfile").value=snippets[name]||"";refreshEditorVisual();
       toast("Template inserido: "+name);
     };
     $("df-dockerfile-save").onclick=async()=>{
@@ -674,7 +699,7 @@
       const file=e.target.files[0];
       if(file){
         const editor=app.editorMode==="dockerfile"?$("df-dockerfile"):$("df-yaml");
-        editor.value=await file.text();
+        editor.value=await file.text();refreshEditorVisual();
         toast(file.name+" importado para o editor");
       }
       e.target.value="";
@@ -684,11 +709,20 @@
       download(dockerfile?"Dockerfile":"docker-compose.yml",
         $(dockerfile?"df-dockerfile":"df-yaml").value,dockerfile?"text/plain":"text/yaml");
     };
+    $("df-editor-highlight-toggle").onclick=()=>{
+      highlightedPreview=!highlightedPreview;
+      $("df-editor-highlight-toggle").textContent=highlightedPreview?"✎ Voltar ao editor":"◈ Prévia destacada";
+      switchEditor(app.editorMode);
+    };
     [$("df-yaml"),$("df-dockerfile")].forEach(editor=>{
+      editor.addEventListener("input",refreshEditorVisual);
+      editor.addEventListener("scroll",()=>{
+        $("df-editor-lines").scrollTop=editor.scrollTop;
+      });
       editor.addEventListener("keydown",e=>{
         if(e.key==="Tab"){
           e.preventDefault();
-          e.target.setRangeText("  ",e.target.selectionStart,e.target.selectionEnd,"end");
+          e.target.setRangeText("  ",e.target.selectionStart,e.target.selectionEnd,"end");refreshEditorVisual();
         }
         if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){
           e.preventDefault();
@@ -701,11 +735,27 @@
     $("df-terminal-close").onclick=closeTerminal;
     $("df-terminal-input").addEventListener("keydown",async e=>{
       if(!app.terminal)return;
+      if(e.key==="ArrowUp"&&terminalHistory.length){
+        e.preventDefault();terminalHistoryCursor=Math.max(0,terminalHistoryCursor-1);
+        e.target.value=terminalHistory[terminalHistoryCursor];return;
+      }
+      if(e.key==="ArrowDown"&&terminalHistory.length){
+        e.preventDefault();terminalHistoryCursor=Math.min(terminalHistory.length,terminalHistoryCursor+1);
+        e.target.value=terminalHistory[terminalHistoryCursor]||"";return;
+      }
+      if(e.ctrlKey&&e.key.toLowerCase()==="l"){
+        e.preventDefault();$("df-terminal-output").textContent="";return;
+      }
       if(e.ctrlKey&&e.key.toLowerCase()==="c"){
         e.preventDefault();await api("/terminal/send","POST",{session:app.terminal,input:"\u0003"});return;
       }
       if(e.key==="Enter"&&!e.shiftKey){
         e.preventDefault();const value=e.target.value;e.target.value="";
+        if(value.trim()){
+          if(terminalHistory[terminalHistory.length-1]!==value)terminalHistory.push(value);
+          if(terminalHistory.length>50)terminalHistory.shift();
+        }
+        terminalHistoryCursor=terminalHistory.length;
         try{await api("/terminal/send","POST",{session:app.terminal,input:value+"\n"});}
         catch(err){toast(err.message,true);}
       }
@@ -733,6 +783,7 @@
     app.pollTimer=null;
     if(app.terminal)api("/terminal/close","POST",{session:app.terminal}).catch(()=>{});
     app.terminal=null;
+    terminalHistory.length=0;terminalHistoryCursor=0; // Não persiste senhas/comandos.
   }
   window.DockerFlow={mount,dispose,api};
 })();
