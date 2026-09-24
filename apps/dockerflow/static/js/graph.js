@@ -13,6 +13,88 @@
       pan:{x:65,y:46},zoom:1,activeDrag:null,origin:null};
     const world = $("df-world"), stage = $("df-stage"), layer = $("df-nodes");
     const inspector = $("df-inspector-content"), svg = $("df-edges");
+    const history=[], future=[];
+    let sourceCompose="";
+    function checkpoint(){
+      history.push(JSON.stringify({nodes:state.nodes,edges:state.edges,removed:state.removed,
+                                   pan:state.pan,zoom:state.zoom}));
+      if(history.length>35)history.shift();
+      future.length=0;
+    }
+    function restore(data){
+      const saved=JSON.parse(data);
+      Object.assign(state,saved,{selected:null,linking:null,activeDrag:null,origin:null});
+      render();persistPositions();
+    }
+    function undo(){
+      if(!history.length)return deps.toast("Nenhuma edição para desfazer");
+      future.push(JSON.stringify({nodes:state.nodes,edges:state.edges,removed:state.removed,pan:state.pan,zoom:state.zoom}));
+      restore(history.pop());
+    }
+    function redo(){
+      if(!future.length)return deps.toast("Nenhuma edição para refazer");
+      history.push(JSON.stringify({nodes:state.nodes,edges:state.edges,removed:state.removed,pan:state.pan,zoom:state.zoom}));
+      restore(future.pop());
+    }
+    function getDocument(){return {version:2,nodes:state.nodes,edges:state.edges,source_compose:sourceCompose};}
+    function loadGraph(document){
+      checkpoint();
+      // IDs presentes em JSON/Compose são rascunhos, nunca autorização para agir em recursos existentes.
+      state.nodes=document.nodes.map(n=>({...n,existing:false,dockerId:null}));
+      state.edges=document.edges.map(e=>({...e,persisted:false}));
+      state.removed=[];state.selected=null;state.linking=null;
+      sourceCompose=document.source_compose||"";
+      render();persistPositions();
+    }
+    async function saveProject(){
+      const values=await deps.ask({title:"Salvar projeto visual",fields:[{key:"name",label:"Nome do projeto",value:"laboratorio"}],confirmText:"Salvar"});
+      if(!values)return;
+      try{await deps.api("/graph/save","POST",{name:values.name,graph:getDocument()});deps.toast("Diagrama salvo localmente");}
+      catch(e){deps.toast(e.message,true);}
+    }
+    async function openProject(){
+      try{
+        const names=await deps.api("/graph/projects");
+        if(!names.length)return deps.toast("Nenhum diagrama salvo");
+        const fields=[{key:"name",label:"Projeto disponível: "+names.join(", "),value:names[0]}];
+        const values=await deps.ask({title:"Abrir projeto visual",fields,confirmText:"Abrir rascunho"});
+        if(!values)return;
+        const result=await deps.api("/graph/load","POST",{name:values.name});
+        loadGraph(result);
+        deps.toast("Projeto carregado como rascunho. Importe Docker para operar em recursos existentes.");
+      }catch(e){deps.toast(e.message,true);}
+    }
+    async function compareDocker(){
+      try{
+        const result=await deps.api("/graph/drift","POST",{graph:getDocument()});
+        deps.showOutput("Diferenças: desenho × Docker",JSON.stringify(result,null,2));
+      }catch(e){deps.toast(e.message,true);}
+    }
+    function exportSvg(){
+      const elements=state.edges.map(e=>{
+        const a=node(e.source),b=node(e.target);if(!a||!b)return "";
+        return '<line x1="'+(a.x+87)+'" y1="'+(a.y+40)+'" x2="'+(b.x+87)+'" y2="'+(b.y+40)+'" stroke="#70a583" stroke-width="2"/>';
+      }).join("")+state.nodes.map(n=>'<g><rect x="'+n.x+'" y="'+n.y+'" rx="10" width="175" height="96" fill="'+
+        (n.kind==="network"?"#eff6e8":"#ffffff")+'" stroke="#a8c9ac"/><text x="'+(n.x+12)+'" y="'+(n.y+35)+
+        '" font-family="sans-serif" font-size="13" fill="#244a31">'+esc(n.name)+'</text><text x="'+(n.x+12)+
+        '" y="'+(n.y+59)+'" font-family="sans-serif" font-size="10" fill="#537760">'+
+        esc(n.kind==="network"?(n.driver||"bridge"):(n.image||"Sem imagem"))+'</text></g>').join("");
+      const w=Math.max(760,...state.nodes.map(n=>n.x+230)),h=Math.max(480,...state.nodes.map(n=>n.y+140));
+      deps.download("dockerflow-diagrama.svg",'<svg xmlns="http://www.w3.org/2000/svg" width="'+w+
+        '" height="'+h+'" viewBox="0 0 '+w+' '+h+'"><rect width="100%" height="100%" fill="#f6faf5"/>'+
+        elements+'</svg>',"image/svg+xml");
+    }
+    function minimap(){
+      const map=$("df-minimap");if(!map)return;
+      const w=Math.max(900,...state.nodes.map(n=>n.x+205));
+      const h=Math.max(550,...state.nodes.map(n=>n.y+122));
+      map.setAttribute("viewBox","0 0 "+w+" "+h);
+      map.innerHTML=state.edges.map(e=>{
+        const a=node(e.source),b=node(e.target);return a&&b?
+        '<path d="M'+(a.x+87)+' '+(a.y+43)+' L'+(b.x+87)+' '+(b.y+43)+'" stroke="#b4c6b0" stroke-width="7"/>':"";
+      }).join("")+state.nodes.map(n=>'<rect x="'+n.x+'" y="'+n.y+'" width="174" height="90" rx="14" fill="'+
+        (n.kind==="network"?"#b8cda1":"#478e62")+'"/>').join("");
+    }
 
     function persistPositions() {
       try {
@@ -82,6 +164,7 @@
           '" data-edge="'+esc(e.id)+'" />';
       }).join("");
       renderInspector();
+      minimap();
       updateStatus();
     }
     function field(label,value,attribute,disabled=false) {
@@ -184,7 +267,7 @@
         x:Math.round(x),y:Math.round(y),existing:false,driver:"bridge",
         image:values.image?.trim()||"",internal:false};
       if(state.nodes.some(o=>o.name===n.name&&o.kind===n.kind)) return deps.toast("Nome já usado no desenho",true);
-      state.nodes.push(n);state.selected={type:"node",id:n.id};persistPositions();render();
+      checkpoint();state.nodes.push(n);state.selected={type:"node",id:n.id};persistPositions();render();
     }
     async function connect(a,b) {
       if (a===b) return deps.toast("Escolha outro bloco",true);
@@ -202,10 +285,11 @@
           return deps.toast("Nome de rede vazio ou duplicado",true);
         const network={id:uid(),kind:"network",name,driver:"bridge",existing:false,
           x:Math.round((na.x+nb.x)/2+80),y:Math.round((na.y+nb.y)/2-130)};
-        state.nodes.push(network);
+        checkpoint();state.nodes.push(network);
         normalizeEdge(network.id,na.id,false);normalizeEdge(network.id,nb.id,false);
       } else {
-        if (!normalizeEdge(a,b,false)) return deps.toast("Essa ligação já existe",true);
+        if(state.edges.some(e=>e.source===a&&e.target===b||e.source===b&&e.target===a))return deps.toast("Essa ligação já existe",true);
+        checkpoint();if(!normalizeEdge(a,b,false)) return;
       }
       state.selected=null;render();
     }
@@ -216,7 +300,7 @@
         description:"Isso substituirá os blocos desenhados que ainda não foram aplicados. Exporte JSON para guardar seu rascunho.",
         fields:[]
       })))return;
-      const uidNet=uid(),uidWeb=uid(),uidDb=uid();
+      checkpoint();const uidNet=uid(),uidWeb=uid(),uidDb=uid();
       state.nodes=[
         {id:uidWeb,kind:"container",name:"minha-api",image:"nginx:alpine",
           existing:false,driver:"bridge",x:88,y:170},
@@ -254,11 +338,13 @@
           if(container)edges.push({id:uid(),source:id,target:container,persisted:true});
         });
       });
+      history.length=0;future.length=0;sourceCompose="";
       state.nodes=nodes;state.edges=edges;state.removed=[];state.selected=null;state.linking=null;
       render();persistPositions();deps.toast("Topologia importada do Docker");
     }
     function removeSelected() {
       if(!state.selected)return;
+      checkpoint();
       if(state.selected.type==="edge") {
         const e=state.edges.find(x=>x.id===state.selected.id);
         if (e?.persisted) state.removed.push({source:e.source,target:e.target});
@@ -293,6 +379,7 @@
         confirmText:"Aplicar ao Docker"
       });
       if(!accepted)return;
+      history.length=0;future.length=0;
       try {
         // Pré-voo: obter imagens ausentes ANTES de criar redes para reduzir operações parciais.
         const installed=await deps.api("/images");
@@ -346,7 +433,7 @@
       }catch(e){deps.toast(e.message,true);}
     }
     function exportJson(){
-      const content=JSON.stringify({version:2,nodes:state.nodes,edges:state.edges},null,2);
+      const content=JSON.stringify(getDocument(),null,2);
       deps.download("dockerflow-topologia.json",content,"application/json");
     }
     async function importJson(file) {
@@ -363,9 +450,7 @@
            ids.has(n.id))return deps.toast("Arquivo contém blocos inválidos",true);
         ids.add(n.id);
       }
-      state.nodes=data.nodes;state.edges=data.edges.filter(e=>
-        ids.has(e.source)&&ids.has(e.target)&&typeof e.id==="string");
-      state.removed=[];state.selected=null;render();persistPositions();
+      loadGraph({...data,edges:data.edges.filter(e=>ids.has(e.source)&&ids.has(e.target)&&typeof e.id==="string")});
       deps.toast("Grafo importado. Confirme a ligação real antes de aplicar.");
     }
 
@@ -376,7 +461,7 @@
       const el=e.target.closest(".df-graph-node");
       if(!el)return;
       const n=node(el.dataset.id);if(!n)return;
-      state.selected={type:"node",id:n.id};
+      checkpoint();state.selected={type:"node",id:n.id};
       state.activeDrag={id:n.id,clientX:e.clientX,clientY:e.clientY,x:n.x,y:n.y};
       el.setPointerCapture(e.pointerId);renderInspector();
     });
@@ -459,11 +544,11 @@
     inspector.addEventListener("change",e=>{
       const n=node(state.selected?.id);
       if(!n||n.existing)return;
-      if(e.target.dataset.edit){n[e.target.dataset.edit]=e.target.value;render();}
-      if(e.target.hasAttribute("data-internal")){n.internal=e.target.checked;}
+      if(e.target.dataset.edit){checkpoint();n[e.target.dataset.edit]=e.target.value;render();}
+      if(e.target.hasAttribute("data-internal")){checkpoint();n.internal=e.target.checked;}
       if(e.target.hasAttribute("data-preset")){
         const preset=imagePresets[e.target.value];
-        if(preset){n.image=preset.image;n.container_port=preset.port;n.host_port="";
+        if(preset){checkpoint();n.image=preset.image;n.container_port=preset.port;n.host_port="";
           n.env_text=JSON.stringify(preset.env,null,2);render();}
       }
     });
@@ -482,6 +567,12 @@
         }catch(err){deps.toast(err.message,true);}
       }
     });
+    $("df-undo").onclick=undo;
+    $("df-redo").onclick=redo;
+    $("df-diagram-save").onclick=saveProject;
+    $("df-diagram-open").onclick=openProject;
+    $("df-diagram-diff").onclick=compareDocker;
+    $("df-graph-svg").onclick=exportSvg;
     $("df-zoom-in").onclick=()=>{state.zoom=Math.min(1.8,state.zoom+.1);transform();};
     $("df-zoom-out").onclick=()=>{state.zoom=Math.max(.4,state.zoom-.1);transform();};
     $("df-zoom-reset").onclick=()=>{state.zoom=1;state.pan={x:65,y:46};transform();};
@@ -494,6 +585,6 @@
     $("df-import-input").onchange=e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value="";};
 
     render();
-    return {importDocker,exportJson,render,addDraft,apply,getState:()=>state};
+    return {importDocker,exportJson,render,addDraft,apply,loadGraph,getState:()=>state};
   };
 })();

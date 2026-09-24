@@ -264,3 +264,11 @@
   border-radius:9px;padding:9px;background:white}
 #dockerflow-root .df-inspect-card .df-field select {width:100%;border:1px solid #dae7dc;
   border-radius:9px;background:white;color:#34583e;padding:9px}
+
+/* DockerFlow 0.3: minimap contextual e Network Lab */
+#dockerflow-root #df-minimap {position:absolute;bottom:15px;right:15px;width:175px;height:112px;
+ background:#fffffff2;border:1px solid #dae8d9;border-radius:12px;box-shadow:0 6px 22px #17492b19;
+ pointer-events:none;z-index:4}
+#dockerflow-root #df-undo,#dockerflow-root #df-redo {font-size:17px}
+#dockerflow-root [data-content="networks"] .df-table-wrap {overflow:auto}
+@media(max-width:920px){#dockerflow-root #df-minimap{width:115px;height:75px}}

@@ -101,3 +101,44 @@ class GraphTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class SecurityAndProjectTests(unittest.TestCase):
+    def test_local_api_denies_requests_without_matching_token(self):
+        from apps.dockerflow.services.security_service import validate, TOKEN
+        valid = {"headers": {"Host": "127.0.0.1:8766", "X-DockerFlow-Token": TOKEN}}
+        validate(valid)
+        for headers in (
+            {"Host": "evil.invalid", "X-DockerFlow-Token": TOKEN},
+            {"Host": "127.0.0.1:8766", "X-DockerFlow-Token": "wrong"},
+            {"Host": "127.0.0.1:8766", "Origin": "http://evil.invalid", "X-DockerFlow-Token": TOKEN}
+        ):
+            with self.assertRaises(PermissionError):
+                validate({"headers": headers})
+
+    def test_saved_graph_is_not_treated_as_verified_docker_resources(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from apps.dockerflow.services import graph_project_service as store
+        graph = {"version": 2, "nodes": [
+            {"id": "n", "kind": "network", "name": "lab", "x": 30, "y": 50}],
+            "edges": []}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(store, "BASE", Path(tmp)):
+            store.save("lab", graph)
+            self.assertEqual(store.load("lab")["nodes"][0]["name"], "lab")
+            with self.assertRaises(ValueError):
+                store.save("../escape", graph)
+
+    def test_from_compose_creates_drawable_network_edges(self):
+        from apps.dockerflow.services.graph_service import from_compose
+        graph = from_compose("services:\\n  api:\\n    image: nginx:alpine\\n    networks: [internal]\\nnetworks:\\n  internal: {}\\n")
+        self.assertEqual(len(graph["edges"]), 1)
+        self.assertFalse(graph["nodes"][0]["existing"])
+
+    def test_advanced_network_ipam_requires_gateway_inside_subnet(self):
+        engine = MagicMock()
+        engine.ping.return_value = True
+        svc = DockerService(engine)
+        with self.assertRaisesRegex(ValueError, "fora da sub-rede"):
+            svc.network_action("create", {"name": "lab", "subnet": "172.29.0.0/24",
+                                           "gateway": "172.30.0.1"})

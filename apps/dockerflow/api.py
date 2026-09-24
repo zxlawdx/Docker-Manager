@@ -8,7 +8,9 @@ from .services.task_service import task_service as tasks
 from .services.docker_service import docker_service as d
 from .services.terminal_service import terminal_service as terminal
 from .services import compose_service as compose
-from .services.graph_service import to_compose
+from .services.graph_service import to_compose, from_compose
+from .services import graph_project_service as graph_projects_service
+from .services import diagnostic_service
 
 def safe(fn, *args):
     try:
@@ -144,6 +146,38 @@ def tasks_status(context):
 def tasks_cancel(context):
     return safe(tasks.cancel, body(context).get("id"))
 
+@api.get("/graph/projects")
+def graph_projects():
+    return safe(graph_projects_service.projects)
+
+@api.post("/graph/save")
+def graph_save(context):
+    data = body(context)
+    return safe(graph_projects_service.save, data.get("name"), data.get("graph"))
+
+@api.post("/graph/load")
+def graph_load(context):
+    return safe(graph_projects_service.load, body(context).get("name"))
+
+@api.post("/graph/drift")
+def graph_drift(context):
+    return safe(graph_projects_service.drift, body(context).get("graph"), d)
+
+@api.post("/graph/from-compose")
+def graph_from_compose(context):
+    return safe(lambda: from_compose(body(context).get("content")))
+
+@api.post("/diagnostics/connectivity")
+def diagnostics_connectivity(context):
+    data = body(context)
+    return tasks.submit("Diagnóstico de rede", diagnostic_service.connectivity,
+                        data.get("source"), data.get("target"))
+
+@api.get("/diagnostics/storage")
+def diagnostics_storage():
+    return safe(diagnostic_service.disk_usage)
+
+
 # A API compartilhada do Vela registra handlers globais. Encapsular SOMENTE
 # nossas rotas e declarar explicitamente context para receber headers do Bottle.
 for _route in api.routes:
@@ -163,3 +197,4 @@ for _route in api.routes:
         return handler()
 
     _route["handler"] = _protected
+

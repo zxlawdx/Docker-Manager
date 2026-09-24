@@ -1,5 +1,7 @@
 """Adaptador Docker SDK. Mantém Docker fora das views Vela."""
 import docker
+import ipaddress
+from docker.types import IPAMConfig, IPAMPool
 
 class DockerService:
     def __init__(self, client=None):
@@ -117,7 +119,8 @@ class DockerService:
             a = n.attrs
             rows.append({"id": n.id, "name": n.name, "driver": a.get("Driver"),
                          "internal": a.get("Internal", False),
-                         "scope": a.get("Scope"), "containers": [
+                         "scope": a.get("Scope"), "ipam": a.get("IPAM") or {},
+                         "ipv6": a.get("EnableIPv6", False), "containers": [
                              {"id": ident, "name": info.get("Name", ""), "ip": info.get("IPv4Address", "")}
                              for ident, info in (a.get("Containers") or {}).items()]})
         return rows
@@ -128,8 +131,21 @@ class DockerService:
             name = str(data.get("name", ""))
             if not re.fullmatch(r"[a-zA-Z0-9][\w.-]{0,62}", name):
                 raise ValueError("Nome de rede inválido")
-            n = self.client.networks.create(name, driver="bridge", check_duplicate=True,
-                                             internal=bool(data.get("internal")))
+            subnet = str(data.get("subnet") or "").strip()
+            gateway = str(data.get("gateway") or "").strip()
+            kwargs = {"driver": "bridge", "check_duplicate": True,
+                      "internal": bool(data.get("internal"))}
+            if gateway and not subnet:
+                raise ValueError("Defina a sub-rede antes do gateway")
+            if subnet:
+                network = ipaddress.ip_network(subnet, strict=True)
+                if gateway and ipaddress.ip_address(gateway) not in network:
+                    raise ValueError("Gateway fora da sub-rede")
+                kwargs["ipam"] = IPAMConfig(pool_configs=[IPAMPool(subnet=str(network),
+                                                                  gateway=gateway or None)])
+            if data.get("enable_ipv6"):
+                kwargs["enable_ipv6"] = True
+            n = self.client.networks.create(name, **kwargs)
             return {"ok": True, "id": n.id}
         n = self.client.networks.get(data["network"])
         if action == "remove":
@@ -144,7 +160,8 @@ class DockerService:
             n.reload()
             is_connected = c.id in (n.attrs.get("Containers") or {})
             if action == "connect" and not is_connected:
-                n.connect(c, aliases=data.get("aliases") or None)
+                n.connect(c, aliases=data.get("aliases") or None,
+                          ipv4_address=data.get("ipv4_address") or None)
             if action == "disconnect" and is_connected:
                 if n.name in ("bridge", "host", "none"):
                     raise ValueError("Rede padrão protegida")

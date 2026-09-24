@@ -8,7 +8,7 @@
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
     terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
   const titles={overview:"Visão geral",graph:"Laboratório visual",
-    containers:"Containers",images:"Imagens",volumes:"Volumes",ide:"Compose IDE",terminal:"Terminal Docker"};
+    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",ide:"Compose IDE",terminal:"Terminal Docker"};
 
   async function api(path,method="GET",payload=null){
     const opts={method,headers:{"Accept":"application/json",
@@ -85,6 +85,8 @@
     if(page==="containers")loadContainers();
     if(page==="images")loadImages();
     if(page==="volumes")loadVolumes();
+    if(page==="networks")loadNetworks();
+    if(page==="tasks")loadTasks();
     if(page==="terminal")refreshTerminalList();
     if(page==="ide")listProjects();
   }
@@ -108,6 +110,8 @@
     if(app.page==="containers")await loadContainers();
     if(app.page==="images")await loadImages();
     if(app.page==="volumes")await loadVolumes();
+    if(app.page==="networks")await loadNetworks();
+    if(app.page==="tasks")await loadTasks();
   }
   function rowButton(action,label,id,extra=""){
     return '<button class="df-mini-btn '+esc(extra)+'" data-action="'+esc(action)+'" data-id="'+esc(id)+
@@ -201,6 +205,58 @@
     if(!(await confirmed("Remover imagem?","Contêineres dependentes podem bloquear esta operação.","Remover")))return;
     try{await api("/images/action","POST",{action:"remove",image:id});toast("Imagem removida");await refresh();}
     catch(err){toast(err.message,true);}
+  }
+
+  async function loadTasks(){
+    try{
+      const jobs=await api("/tasks");
+      $("df-task-list").innerHTML='<table class="df-table"><thead><tr><th>Operação</th><th>Estado</th><th>Início</th><th>Ações</th></tr></thead><tbody>'+
+       jobs.map(j=>'<tr><td>'+esc(j.label)+'</td><td>'+esc(j.state)+'</td><td>'+esc(j.created)+'</td><td>'+
+        (j.state==="queued"?rowButton("task-cancel","Cancelar",j.id):"—")+'</td></tr>').join("")+
+       '</tbody></table>'+(jobs.length?"":'<div class="df-empty">Nenhuma tarefa registrada.</div>');
+    }catch(err){$("df-task-list").textContent=err.message;}
+  }
+  async function loadNetworks(){
+    try{
+      const networks=await api("/networks");app.networks=networks;
+      $("df-network-list").innerHTML='<table class="df-table"><thead><tr><th>Rede</th><th>Driver / IPAM</th><th>Containers</th><th>Ações</th></tr></thead><tbody>'+
+        networks.map(n=>'<tr><td><b>'+esc(n.name)+'</b><small>'+esc(n.id.slice(0,12))+'</small></td>'+
+         '<td>'+esc(n.driver)+'<small>'+esc(JSON.stringify(n.ipam?.Config||[]))+'</small></td>'+
+         '<td>'+esc((n.containers||[]).map(x=>x.name).join(", ")||"—")+'</td><td><div class="df-row-actions">'+
+         rowButton("network-connect","Conectar",n.id)+
+         (!["bridge","host","none"].includes(n.name)?rowButton("network-remove","Remover",n.id,"danger"):"")+
+         '</div></td></tr>').join("")+'</tbody></table>';
+    }catch(err){$("df-network-list").textContent=err.message;}
+  }
+  async function createNetwork(){
+    const data=await ask({title:"Rede bridge com IPAM",description:"Subnet e gateway são opcionais. Revise antes de criar no Docker.",
+      fields:[{key:"name",label:"Nome",value:"rede-lab"},
+              {key:"subnet",label:"Sub-rede CIDR (opcional)",value:""},
+              {key:"gateway",label:"Gateway (opcional)",value:""},
+              {key:"internal",label:"Isolada? 1=sim; 0=não",value:"0"}],confirmText:"Criar"});
+    if(!data)return;
+    try{await api("/networks/action","POST",{action:"create",name:data.name,
+      subnet:data.subnet,gateway:data.gateway,internal:data.internal==="1"});
+      toast("Rede criada");await loadNetworks();}
+    catch(err){toast(err.message,true);}
+  }
+  async function networkAction(action,id){
+    const n=app.networks.find(item=>item.id===id);
+    if(!n)return;
+    try{
+      if(action==="network-remove"){
+        if(!(await confirmed("Excluir rede?","A rede não pode conter containers ligados.","Excluir")))return;
+        await api("/networks/action","POST",{action:"remove",network:id});
+      }else{
+        const data=await ask({title:"Conectar container à rede "+n.name,
+          fields:[{key:"container",label:"Nome ou ID do container",value:""},
+                  {key:"ipv4_address",label:"IPv4 fixo (opcional)",value:""}],confirmText:"Conectar"});
+        if(!data)return;
+        await api("/networks/action","POST",{action:"connect",network:id,
+          container:data.container,ipv4_address:data.ipv4_address});
+      }
+      toast("Rede atualizada");await loadNetworks();
+    }catch(err){toast(err.message,true);}
   }
   async function loadVolumes(){
     try{
@@ -364,6 +420,24 @@
     $("df-new-container").onclick=createContainer;
     $("df-image-pull").onclick=pullImage;
     $("df-volume-new").onclick=newVolume;
+    $("df-network-create").onclick=createNetwork;
+    $("df-task-refresh").onclick=loadTasks;
+    $("df-network-list").addEventListener("click",e=>{
+      const button=e.target.closest("[data-action]");
+      if(button)networkAction(button.dataset.action,button.dataset.id);
+    });
+    $("df-task-list").addEventListener("click",async e=>{
+      const button=e.target.closest('[data-action="task-cancel"]');
+      if(!button)return;
+      try{await api("/tasks/cancel","POST",{id:button.dataset.id});await loadTasks();}
+      catch(err){toast(err.message,true);}
+    });
+    $("df-ide-to-graph").onclick=async()=>{
+      try{
+        const graph=await api("/graph/from-compose","POST",{content:$("df-yaml").value});
+        app.graph.loadGraph(graph);navigate("graph");toast("Compose convertido em rascunho visual; valide antes de executar.");
+      }catch(err){toast(err.message,true);}
+    };
     $("df-container-list").addEventListener("click",e=>{
       const btn=e.target.closest("[data-action]");if(btn)containerAction(btn.dataset.action,btn.dataset.id);
     });
@@ -440,7 +514,7 @@
     if(app.mounted)return;
     if(!$("dockerflow-root"))return;
     app.mounted=true;bind();navigate("graph");
-    app.graph=window.DockerGraph({api,toast,ask,setYaml,navigate,refresh,download,openTerminal});
+    app.graph=window.DockerGraph({api,toast,ask,setYaml,navigate,refresh,download,openTerminal,showOutput});
     await refresh();
     if(app.overview.online){
       try{await app.graph.importDocker(true);}

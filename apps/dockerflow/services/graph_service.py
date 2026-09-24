@@ -73,3 +73,53 @@ def to_compose(graph):
             svc["networks"].append(names[n["id"]])
     return yaml.safe_dump({"services": services, "networks": networks},
                           sort_keys=False, allow_unicode=True)
+
+
+def from_compose(content):
+    """Compose -> rascunho visual. Não garante round-trip para campos desconhecidos."""
+    if not isinstance(content, str) or len(content) > 262144:
+        raise ValueError("Compose vazio ou acima do limite")
+    doc = yaml.safe_load(content)
+    if not isinstance(doc, dict) or not isinstance(doc.get("services"), dict):
+        raise ValueError("Compose requer services")
+    if len(doc["services"]) > 100:
+        raise ValueError("Muitos serviços")
+    nodes, edges, networks = [], [], {}
+    declarations = doc.get("networks") or {}
+    if not isinstance(declarations, dict):
+        raise ValueError("Networks inválido")
+    for i, (name, spec) in enumerate(declarations.items()):
+        if not isinstance(spec, dict):
+            spec = {}
+        ident = "compose-network-" + str(i)
+        networks[name] = ident
+        nodes.append({"id": ident, "kind": "network",
+                      "name": str(spec.get("name") or name),
+                      "driver": spec.get("driver") or "bridge", "existing": False,
+                      "x": 390, "y": 80 + i * 165})
+    for i, (name, spec) in enumerate(doc["services"].items()):
+        if not isinstance(spec, dict):
+            raise ValueError("Serviço malformado: " + str(name))
+        ident = "compose-service-" + str(i)
+        item = {"id": ident, "kind": "container", "name": str(name),
+                "image": str(spec.get("image") or ""),
+                "existing": False, "x": 75, "y": 80 + i * 145,
+                "env_text": json.dumps(spec.get("environment") if isinstance(spec.get("environment"), dict) else {})}
+        ports = spec.get("ports") or []
+        if ports and isinstance(ports[0], str):
+            parts = ports[0].split(":")
+            if len(parts) == 2 and all(x.isdigit() for x in parts):
+                item["host_port"], item["container_port"] = parts
+        nodes.append(item)
+        connected = spec.get("networks") or []
+        for network in (connected.keys() if isinstance(connected, dict) else connected):
+            if network not in networks:
+                ident_net = "compose-network-implicit-" + str(len(networks))
+                networks[network] = ident_net
+                nodes.append({"id": ident_net, "kind": "network", "name": network,
+                              "driver": "bridge", "existing": False,
+                              "x": 400, "y": 80 + len(networks) * 165})
+            edges.append({"id": "compose-edge-" + str(len(edges)),
+                          "source": networks[network], "target": ident,
+                          "persisted": False})
+    return {"version": 2, "nodes": nodes, "edges": edges, "source_compose": content}
