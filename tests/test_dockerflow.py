@@ -196,3 +196,29 @@ class GraphPlanTests(unittest.TestCase):
         result=plan(graph,daemon)
         self.assertFalse(result["valid"])
         self.assertIn("ocupada",result["conflicts"][0])
+
+class AuditTests(unittest.TestCase):
+    def test_audit_excludes_environment_secrets(self):
+        from apps.dockerflow.services.audit_service import inspect_containers
+        daemon = MagicMock()
+        item = MagicMock()
+        item.id = "id"; item.name = "web"; item.status = "running"
+        item.attrs = {"Config": {"User": "", "Env": ["TOKEN=SENSITIVE"]},
+                      "HostConfig": {"Privileged": True, "SecurityOpt": []},
+                      "Mounts": [{"Source": "/var/run/docker.sock"}],
+                      "NetworkSettings": {"Ports": {}}}
+        daemon.containers.list.return_value = [item]
+        report = inspect_containers(daemon)
+        self.assertNotIn("SENSITIVE", str(report))
+        self.assertGreaterEqual(len(report["containers"][0]["notes"]), 2)
+
+    def test_unused_volume_keeps_references_from_stopped_containers(self):
+        from apps.dockerflow.services.audit_service import unused_volumes
+        daemon = MagicMock()
+        container = MagicMock()
+        container.attrs = {"Mounts": [{"Type": "volume", "Name": "kept"}]}
+        daemon.containers.list.return_value = [container]
+        first = MagicMock(); first.name = "kept"; first.attrs = {"Driver": "local"}
+        second = MagicMock(); second.name = "unused"; second.attrs = {"Driver": "local"}
+        daemon.volumes.list.return_value = [first, second]
+        self.assertEqual([x["name"] for x in unused_volumes(daemon)], ["unused"])

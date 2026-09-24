@@ -124,6 +124,28 @@ class DockerService:
         if action == "remove":
             self.client.images.remove(data["image"], force=False)
             return {"ok": True}
+        if action == "history":
+            image = self.client.images.get(data["image"])
+            # Evita CreatedBy: instruções de build podem conter credenciais.
+            return {"history": [{"id": x.get("Id"), "created": x.get("Created"),
+                                 "size": x.get("Size")} for x in image.history()]}
+        if action == "tag":
+            import re
+            name, tag = str(data.get("repository") or ""), str(data.get("tag") or "latest")
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.\\/-]{0,180}", name):
+                raise ValueError("Repositório de imagem inválido")
+            if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", tag):
+                raise ValueError("Tag de imagem inválida")
+            return {"ok": self.client.images.get(data["image"]).tag(name, tag=tag)}
+        if action == "prune-preview":
+            dangling = self.client.images.list(filters={"dangling": True})
+            return {"count": len(dangling),
+                    "images": [{"id": x.id, "size": x.attrs.get("Size", 0)} for x in dangling],
+                    "notice": "Camadas compartilhadas: soma de tamanhos não é espaço recuperável."}
+        if action == "prune":
+            result = self.client.images.prune(filters={"dangling": True})
+            return {"ok": True, "deleted": result.get("ImagesDeleted") or [],
+                    "space_reclaimed": result.get("SpaceReclaimed", 0)}
         if action == "build":
             from pathlib import Path
             directory = Path(data["path"]).expanduser().resolve()

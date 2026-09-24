@@ -10,6 +10,7 @@ from .services.terminal_service import terminal_service as terminal
 from .services import compose_service as compose
 from .services.graph_service import to_compose, from_compose, report, plan
 from .services import monitor_service
+from .services import audit_service
 from .services import graph_project_service as graph_projects_service
 from .services import diagnostic_service
 
@@ -208,6 +209,15 @@ def monitor_events():
 @api.post("/graph/plan")
 def graph_plan(context):
     return safe(lambda: plan(body(context), d))
+
+
+@api.get("/audit/containers")
+def audit_containers():
+    return safe(audit_service.inspect_containers)
+
+@api.get("/audit/unused-volumes")
+def audit_unused_volumes():
+    return safe(audit_service.unused_volumes)
 
 
 # A API compartilhada do Vela registra handlers globais. Encapsular SOMENTE
