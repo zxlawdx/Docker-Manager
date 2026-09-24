@@ -188,6 +188,19 @@ def diagnostics_connectivity(context):
     return tasks.submit("Diagnóstico de rede", diagnostic_service.connectivity,
                         data.get("source"), data.get("target"))
 
+@api.post("/diagnostics/service")
+def diagnostics_service(context):
+    data = body(context)
+    return safe(tasks.submit, "Diagnóstico DNS/TCP/HTTP", diagnostic_service.service_probe,
+                data.get("source"), data.get("target"), data.get("protocol", "dns"),
+                data.get("port"))
+
+
+@api.post("/containers/processes")
+def containers_processes(context):
+    return safe(d.processes, body(context).get("id"))
+
+
 @api.get("/diagnostics/storage")
 def diagnostics_storage():
     return safe(diagnostic_service.disk_usage)

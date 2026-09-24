@@ -398,3 +398,20 @@
 @media (prefers-reduced-motion:reduce){
   #dockerflow-root button {transition:none}
 }
+
+/* Controles adicionais do editor visual, responsivos aos dois temas. */
+#dockerflow-root .df-canvas-toolbar {height:auto;min-height:58px;padding:10px 13px;flex-wrap:wrap}
+#dockerflow-root .df-graph-search {display:flex;align-items:center;gap:5px;border:1px solid var(--df-line);
+  border-radius:8px;padding:0 8px;max-width:156px;background:var(--df-white);color:var(--df-muted)}
+#dockerflow-root .df-graph-search input {border:0;background:transparent;color:var(--df-ink);
+  padding:6px 0;width:116px;min-width:0;font-size:10px;outline-offset:3px}
+#dockerflow-root .df-snap-label {display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;color:var(--df-muted);white-space:nowrap}
+#dockerflow-root .df-snap-label input {accent-color:#4a9564}
+#dockerflow-root .df-graph-node.df-dimmed {opacity:.25;filter:saturate(.5)}
+#dockerflow-root .df-graph-node.df-dimmed:hover {opacity:1;filter:none}
+@media (max-width:1200px){
+  #dockerflow-root .df-graph-search {max-width:112px}
+  #dockerflow-root .df-graph-search input {width:80px}
+  #dockerflow-root .df-stage-hint {max-width:60%;line-height:1.45}
+}

@@ -108,6 +108,7 @@ def to_compose(graph):
         names[n["id"]] = key
     if not services:
         raise ValueError("Desenhe ao menos um contêiner")
+    linked_container_ids = set()
     for e in graph.get("edges", []):
         a, b = nodes.get(e.get("source")), nodes.get(e.get("target"))
         if not a or not b:
@@ -119,9 +120,16 @@ def to_compose(graph):
         if n.get("name") in ("host", "none"):
             raise ValueError("A rede padrão host/none exige network_mode e não pode ser exportada como rede bridge")
         svc = services[names[c["id"]]]
+        linked_container_ids.add(c["id"])
         svc.setdefault("networks", [])
         if names[n["id"]] not in svc["networks"]:
             svc["networks"].append(names[n["id"]])
+    # Desenho sem rede equivale a network=none. Em Compose importado, manter
+    # campos explícitos/originais evita mudar conexões sem intenção do usuário.
+    if not graph.get("source_compose"):
+        for ident, item in nodes.items():
+            if item.get("kind") == "container" and ident not in linked_container_ids:
+                services[names[ident]]["network_mode"] = "none"
     # Sem remover chaves Compose avançadas que o canvas ainda não representa.
     source = yaml.safe_load(graph.get("source_compose") or "{}") or {}
     if source and not isinstance(source, dict):
@@ -236,6 +244,13 @@ def plan(graph, docker_service):
             if kind == "container" and str(item.get("host_port") or "") in occupied:
                 problems.append("Porta do host ocupada: " + str(item["host_port"]))
             operations.append({"action": "create_" + kind, "name": name})
+    attached = {edge["target"] for edge in graph["edges"]
+                if by_id[edge["target"]]["kind"] == "container"}
+    for item in graph["nodes"]:
+        if item["kind"] == "container" and not item.get("existing") and item["id"] not in attached:
+            notices.append("Container sem rede ficará isolado (network=none): " + item["name"])
+            if item.get("host_port"):
+                problems.append("Porta publicada em container sem rede no desenho: " + item["name"])
     for edge in graph["edges"]:
         source, target = by_id[edge["source"]], by_id[edge["target"]]
         if {source["kind"], target["kind"]} != {"network", "container"}:

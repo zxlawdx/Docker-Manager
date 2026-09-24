@@ -71,7 +71,7 @@
     }
     function isEditingTarget(target){return !!target.closest('input,textarea,select,[contenteditable="true"]');}
     function onGraphKeyboard(e){
-      if(!stage.isConnected||isEditingTarget(e.target))return;
+      if(!stage.isConnected||!stage.closest(".df-page")?.classList.contains("visible")||isEditingTarget(e.target))return;
       const cmd=e.ctrlKey||e.metaKey,key=e.key.toLowerCase();
       if(cmd&&key==="c"){e.preventDefault();copySelection();}
       if(cmd&&key==="v"){e.preventDefault();pasteSelection();}
@@ -579,7 +579,7 @@
         title:"Aplicar alterações ao Docker?",
         description:"Será criado: "+planned.length+" bloco(s), conectado: "+count+
           " ligação(ões), desconectado: "+state.removed.length+
-          ". Imagens ausentes serão baixadas primeiro. Operações não são atômicas.",fields:[],
+          ". Sem arestas, novos containers ficam em network=none; com arestas, entram diretamente na primeira rede. Operações não são atômicas.",fields:[],
         confirmText:"Aplicar ao Docker"
       });
       if(!accepted)return;
@@ -600,11 +600,15 @@
           const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal,subnet:n.subnet||"",gateway:n.gateway||""});
           n.dockerId=result.id;n.existing=true;
         }
-        // 2. Containers devem existir antes dos vínculos de rede.
+        // 2. A primeira rede é usada na CRIAÇÃO para não anexar
+        // acidentalmente containers internos à bridge padrão.
         for(const n of planned.filter(x=>x.kind==="container")){
+          const primary=state.edges.find(e=>e.target===n.id&&node(e.source)?.dockerId);
+          const parent=primary?node(primary.source):null;
           const result=await deps.api("/containers/create","POST",
-            payloads.get(n.id));
+            {...payloads.get(n.id),network:parent?.dockerId||"none"});
           n.dockerId=result.id;n.existing=true;n.status="running";
+          if(primary)primary.persisted=true;
         }
         // 3. Aplicar SOMENTE as novas conexões, com id Docker resolvido.
         for(const edge of state.edges.filter(e=>!e.persisted)){
