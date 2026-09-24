@@ -32,6 +32,19 @@ def to_compose(graph):
                         raise ValueError("Gateway fora da sub-rede de " + key)
                     config["gateway"] = str(gateway)
                 spec["ipam"] = {"config": [config]}
+            if not n.get("existing") and n.get("ipv6_subnet"):
+                import ipaddress
+                subnet6 = ipaddress.ip_network(n["ipv6_subnet"], strict=True)
+                if subnet6.version != 6:
+                    raise ValueError("Sub-rede IPv6 inválida em " + key)
+                config6 = {"subnet": str(subnet6)}
+                if n.get("ipv6_gateway"):
+                    gateway6 = ipaddress.ip_address(n["ipv6_gateway"])
+                    if gateway6 not in subnet6:
+                        raise ValueError("Gateway IPv6 fora da sub-rede em " + key)
+                    config6["gateway"] = str(gateway6)
+                spec.setdefault("ipam", {"config": []})["config"].append(config6)
+                spec["enable_ipv6"] = True
             if n.get("internal") and not n.get("existing"):
                 spec["internal"] = True
             networks[key] = spec
@@ -239,6 +252,23 @@ def plan(graph, docker_service):
         else:
             if current:
                 problems.append("Nome já utilizado no Docker: " + name)
+            if kind == "network":
+                import ipaddress
+                for version, subnet_key, gateway_key in (
+                    (4, "subnet", "gateway"), (6, "ipv6_subnet", "ipv6_gateway")):
+                    subnet = item.get(subnet_key)
+                    gateway = item.get(gateway_key)
+                    if gateway and not subnet:
+                        problems.append("Gateway sem sub-rede para " + name)
+                    elif subnet:
+                        try:
+                            parsed = ipaddress.ip_network(subnet, strict=True)
+                            if parsed.version != version:
+                                problems.append("Sub-rede IPv" + str(version) + " inválida: " + name)
+                            if gateway and ipaddress.ip_address(gateway) not in parsed:
+                                problems.append("Gateway fora da sub-rede para " + name)
+                        except ValueError:
+                            problems.append("Sub-rede/gateway inválido para " + name)
             if kind == "network" and item.get("driver", "bridge") != "bridge":
                 problems.append("A criação visual atualmente aceita apenas bridge: " + name)
             if kind == "container" and str(item.get("host_port") or "") in occupied:

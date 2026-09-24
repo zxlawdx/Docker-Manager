@@ -421,7 +421,9 @@
         (n.kind==="container"?field("Imagem",n.image||"","image",n.existing)+advancedContainer(n):
           '<label class="df-field">Driver<input value="bridge" disabled></label>'+
           (!n.existing?field("Sub-rede CIDR (opcional)",n.subnet||"","subnet")+
-          field("Gateway (opcional)",n.gateway||"","gateway")+
+          field("Gateway IPv4 (opcional)",n.gateway||"","gateway")+
+          field("Sub-rede IPv6 CIDR (opcional)",n.ipv6_subnet||"","ipv6_subnet")+
+          field("Gateway IPv6 (opcional)",n.ipv6_gateway||"","ipv6_gateway")+
           '<label class="df-field"><span><input style="width:auto" type="checkbox" data-internal '+
             (n.internal?'checked':'')+'> Somente interna</span></label>':""))+
         '<div class="df-inspect-value">'+(n.existing?"DOCKER ID "+esc(n.dockerId||""):"RASCUNHO • NÃO CRIADO")+
@@ -562,6 +564,7 @@
       // Validar redes antes de qualquer alteração real.
       for(const network of planned.filter(n=>n.kind==="network")){
         if(network.gateway && !network.subnet)return deps.toast("Informe a sub-rede antes do gateway",true);
+         if(network.ipv6_gateway && !network.ipv6_subnet)return deps.toast("Informe a sub-rede IPv6 antes do gateway IPv6",true);
       }
       let operationPlan;
       try {
@@ -597,7 +600,7 @@
         }
         // 1. Redes antes dos containers: estes podem escolher a rede ao nascer.
         for(const n of planned.filter(x=>x.kind==="network")){
-          const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal,subnet:n.subnet||"",gateway:n.gateway||""});
+          const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal,subnet:n.subnet||"",gateway:n.gateway||"",ipv6_subnet:n.ipv6_subnet||"",ipv6_gateway:n.ipv6_gateway||"",enable_ipv6:!!n.ipv6_subnet});
           n.dockerId=result.id;n.existing=true;
         }
         // 2. A primeira rede é usada na CRIAÇÃO para não anexar

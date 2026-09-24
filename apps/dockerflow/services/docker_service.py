@@ -97,6 +97,12 @@ class DockerService:
             if not isinstance(servers, list) or len(servers) > 4:
                 raise ValueError("DNS: até quatro endereços IP")
             extra["dns"] = [str(ipaddress.ip_address(ip)) for ip in servers]
+        if data.get("command") is not None:
+            command = data["command"]
+            if (not isinstance(command, list) or not 1 <= len(command) <= 30 or
+                any(not isinstance(x, str) or not x or len(x) > 200 for x in command)):
+                raise ValueError("Comando deve ser uma lista de até 30 argumentos")
+            extra["command"] = command
         c = self.client.containers.run(
             image, name=data.get("name") or None, detach=True, ports=ports,
             environment=data.get("environment") or {}, volumes=volumes,
