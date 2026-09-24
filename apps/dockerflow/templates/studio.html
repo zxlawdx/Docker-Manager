@@ -1,0 +1,96 @@
+<link rel="stylesheet" href="{{ static('dockerflow/css/studio.css') }}">
+<div id="dockerflow-root">
+  <aside class="df-rail">
+    <div class="df-brand"><div class="df-brand-mark">◫<b class="df-mark-dot"></b></div><div><strong>dockerflow<span>.</span></strong><small>DESKTOP STUDIO</small></div></div>
+    <div class="df-rail-group">WORKSPACE</div>
+    <nav id="df-nav">
+      <button class="df-nav-item" data-page="overview"><span class="df-icon">▦</span> Visão geral</button>
+      <button class="df-nav-item active" data-page="graph"><span class="df-icon">⌘</span> Laboratório visual <em>NOVO</em></button>
+      <button class="df-nav-item" data-page="containers"><span class="df-icon">⬡</span> Containers</button>
+      <button class="df-nav-item" data-page="images"><span class="df-icon">▤</span> Imagens</button>
+      <button class="df-nav-item" data-page="volumes"><span class="df-icon">◈</span> Volumes</button>
+    </nav>
+    <div class="df-rail-group df-rail-gap">DESENVOLVIMENTO</div>
+    <nav>
+      <button class="df-nav-item" data-page="ide"><span class="df-icon">⌁</span> Compose IDE</button>
+      <button class="df-nav-item" data-page="terminal"><span class="df-icon">›_</span> Terminal Docker</button>
+    </nav>
+    <div class="df-rail-bottom">
+      <div class="df-host"><span id="df-host-dot"></span><div><b>Docker Engine</b><small id="df-host-text">Verificando...</small></div></div>
+      <span>DOCKERFLOW / VELA 0.2</span>
+    </div>
+  </aside>
+  <main class="df-main">
+    <header class="df-topbar">
+      <div class="df-breadcrumb"><span>Workspace</span><span class="df-slash">/</span><b id="df-breadcrumb-current">Laboratório visual</b></div>
+      <div class="df-top-actions">
+        <span class="df-top-state"><i id="df-engine-dot"></i><span id="df-engine-status">Aguardando Docker</span></span>
+        <button class="df-btn df-btn-subtle" id="df-refresh">↻ Atualizar</button>
+        <button class="df-avatar" title="Aplicação local">DF</button>
+      </div>
+    </header>
+
+    <section class="df-page" data-content="overview" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">PAINEL DE CONTROLE</p><h1>Seu ambiente, em perspectiva.</h1><p>Recursos e estado do Docker Engine neste dispositivo.</p></div><button class="df-btn df-btn-primary" data-nav="graph">Abrir laboratório ↗</button></div>
+      <div id="df-metrics" class="df-metrics"></div>
+      <div class="df-card df-welcome"><div><span class="df-eyebrow">COMO COMEÇAR</span><h2>Desenhe sua infraestrutura antes de executá-la.</h2><p>Importe o seu Docker, conecte os contêineres a redes arrastando os blocos e gere YAML de Compose editável.</p><button class="df-btn df-btn-primary" data-nav="graph">Explorar topologia →</button></div><div class="df-welcome-art"><span>API</span><i></i><span>bridge</span><i></i><span>DB</span></div></div>
+    </section>
+
+    <section class="df-page df-graph-page visible" data-content="graph">
+      <div class="df-graph-header">
+        <div><p class="df-eyebrow">DOCKER STUDIO / GRAPH</p><h1>Laboratório visual <sup>BETA</sup></h1><p>Um espaço para conectar serviços, redes e ideias.</p></div>
+        <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-graph-load">↻ Importar Docker</button><button class="df-btn df-btn-subtle" id="df-graph-save">↓ JSON</button><button class="df-btn df-btn-primary" id="df-graph-apply">Aplicar alterações <span id="df-pending-count">0</span></button></div>
+      </div>
+      <div class="df-studio-grid">
+        <aside class="df-palette">
+          <div class="df-palette-intro"><strong>Elementos</strong><small>Arraste para a tela</small></div>
+          <div class="df-palette-item" draggable="true" data-kind="container"><span class="df-shape df-shape-container">⬡</span><div><b>Container</b><small>Serviço / imagem</small></div><span>⋮⋮</span></div>
+          <div class="df-palette-item" draggable="true" data-kind="network"><span class="df-shape df-shape-network">⌘</span><div><b>Rede bridge</b><small>Conectividade Docker</small></div><span>⋮⋮</span></div>
+          <div class="df-palette-note"><b>Como conectar?</b><p>Clique no conector circular de um bloco e depois no de outro. Entre dois containers, uma nova rede será criada no desenho.</p></div>
+          <div class="df-palette-foot"><button class="df-btn df-btn-subtle" id="df-import-file">↑ Importar JSON</button><input type="file" id="df-import-input" accept=".json,application/json" hidden></div>
+        </aside>
+        <div class="df-stage-wrap">
+          <div class="df-canvas-toolbar"><div><strong>Topologia ativa</strong><span id="df-graph-subtitle">Rascunho local</span></div><div class="df-inline"><button class="df-tool" id="df-zoom-out" title="Reduzir">−</button><span id="df-zoom-label">100%</span><button class="df-tool" id="df-zoom-in" title="Ampliar">+</button><button class="df-tool" id="df-zoom-reset" title="Centralizar">⌖</button></div></div>
+          <div id="df-stage" aria-label="Editor visual interativo de redes Docker"><div id="df-world"><svg id="df-edges" xmlns="http://www.w3.org/2000/svg"></svg><div id="df-nodes"></div></div><div class="df-stage-hint">◇ Arraste para mover · clique nos conectores para ligar</div></div>
+          <div class="df-canvas-footer"><div><span class="df-legend df-green"></span> Container <span class="df-legend df-sage"></span> Rede <span class="df-legend df-gray"></span> Rascunho</div><span id="df-selection-tip">Nenhum elemento selecionado</span></div>
+        </div>
+        <aside class="df-inspector" id="df-inspector"><div class="df-palette-intro"><strong>Inspetor</strong><small>Propriedades do elemento</small></div><div id="df-inspector-content" class="df-inspector-empty">Selecione um bloco ou uma conexão para ver seus detalhes.</div></aside>
+      </div>
+      <div class="df-graph-foot"><div><b>◈ Edição segura</b><span>O desenho não modifica o Docker até você confirmar “Aplicar alterações”.</span></div><button class="df-btn df-btn-subtle" id="df-graph-compose">Gerar Compose ↗</button></div>
+    </section>
+
+    <section class="df-page" data-content="containers" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / CONTAINERS</p><h1>Containers</h1><p>Gerencie o ciclo de vida, inspecione e acompanhe logs.</p></div><button class="df-btn df-btn-primary" id="df-new-container">+ Novo container</button></div>
+      <div class="df-card"><div class="df-card-header"><strong>Todos os containers</strong><span id="df-container-total" class="df-count">0</span></div><div id="df-container-list" class="df-table-wrap"></div></div>
+    </section>
+
+    <section class="df-page" data-content="images" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / IMAGENS</p><h1>Biblioteca de imagens</h1><p>Baixe, remova e prepare novas imagens Docker.</p></div><button class="df-btn df-btn-primary" id="df-image-pull">↓ Baixar imagem</button></div><div class="df-card"><div class="df-card-header"><strong>Imagens locais</strong></div><div id="df-image-list"></div></div>
+    </section>
+
+    <section class="df-page" data-content="volumes" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / VOLUMES</p><h1>Volumes & persistência</h1><p>Armazenamento de dados gerenciado pelo Docker.</p></div><button class="df-btn df-btn-primary" id="df-volume-new">+ Novo volume</button></div><div class="df-card"><div class="df-card-header"><strong>Volumes locais</strong></div><div id="df-volume-list"></div></div>
+    </section>
+
+    <section class="df-page df-ide-page" data-content="ide" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">AMBIENTE DE DESENVOLVIMENTO</p><h1>Compose IDE</h1><p>Edite, valide e execute seu docker-compose.yml sem sair do app.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-ide-open">↑ Abrir YAML</button><input id="df-ide-file" type="file" accept=".yml,.yaml,.txt" hidden><button class="df-btn df-btn-subtle" id="df-ide-export">↓ Salvar arquivo</button></div></div>
+      <div class="df-ide-layout"><div class="df-editor-card"><div class="df-editor-bar"><div><span class="df-editor-tab">● <b>compose.yml</b></span></div><span>YAML · UTF-8</span></div><textarea id="df-yaml" spellcheck="false" aria-label="Editor docker-compose YAML">services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+networks: {}
+</textarea></div><aside class="df-ide-side"><h3>Executar projeto</h3><p>O YAML é salvo na pasta de dados do aplicativo. Confira antes de subir ou remover serviços.</p><label class="df-field">Nome do projeto<input id="df-project" value="dockerflow" pattern="[a-z][a-z0-9_-]*"></label><button class="df-btn df-btn-subtle df-wide" id="df-compose-validate">✓ Validar YAML</button><button class="df-btn df-btn-primary df-wide" id="df-compose-up">▶ docker compose up</button><button class="df-btn df-btn-warn df-wide" id="df-compose-down">■ docker compose down</button><button class="df-btn df-btn-subtle df-wide" id="df-compose-save">◫ Salvar projeto</button><label class="df-field">Projetos salvos<select id="df-project-list"><option>Carregando...</option></select></label><button class="df-btn df-btn-subtle df-wide" id="df-compose-load">Carregar projeto</button></aside></div>
+      <div class="df-console"><div class="df-console-title">SAÍDA / COMPOSE</div><pre id="df-compose-output">Pronto para validar.</pre></div>
+    </section>
+
+    <section class="df-page" data-content="terminal" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">DESENVOLVIMENTO / EXEC</p><h1>Terminal integrado</h1><p>Sessão PTY real dentro do contêiner. Os comandos executam no Docker local.</p></div></div>
+      <div class="df-terminal-controls"><label class="df-field">Container<select id="df-terminal-container"></select></label><label class="df-field">Shell<select id="df-terminal-shell"><option value="/bin/sh">/bin/sh</option><option value="/bin/bash">/bin/bash</option><option value="/bin/ash">/bin/ash</option></select></label><button class="df-btn df-btn-primary" id="df-terminal-open">▶ Abrir sessão</button><button class="df-btn df-btn-subtle" id="df-terminal-close">Encerrar</button></div>
+      <div class="df-terminal-card"><div class="df-terminal-title"><span><i></i> docker / exec / tty</span><span id="df-terminal-state">sem sessão</span></div><pre id="df-terminal-output" tabindex="0" aria-label="Saída do terminal">Abra uma sessão para começar. Este terminal suporta shell e comandos de linha; editores full-screen como vim ainda não são renderizados.</pre><textarea id="df-terminal-input" rows="1" placeholder="Digite o comando ou entrada e pressione Enter" aria-label="Entrada no terminal" disabled></textarea></div>
+    </section>
+  </main>
+  <div id="df-notify" aria-live="polite"></div>
+  <dialog id="df-modal"><form method="dialog" id="df-modal-form"><h2 id="df-modal-title"></h2><p id="df-modal-description"></p><div id="df-modal-fields"></div><div class="df-modal-actions"><button value="cancel" class="df-btn df-btn-subtle">Cancelar</button><button id="df-modal-confirm" value="confirm" class="df-btn df-btn-primary">Confirmar</button></div></form></dialog>
+</div>
+<script src="{{ static('dockerflow/js/studio.js') }}"></script>
