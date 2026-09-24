@@ -8,7 +8,7 @@
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
     terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
   const titles={overview:"Visão geral",graph:"Laboratório visual",
-    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",audit:"Auditoria",ide:"Compose IDE",terminal:"Terminal Docker"};
+    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",audit:"Auditoria",logs:"Logs",ide:"Compose IDE",terminal:"Terminal Docker"};
 
   async function api(path,method="GET",payload=null){
     const opts={method,headers:{"Accept":"application/json",
@@ -89,6 +89,7 @@
     if(page==="tasks")loadTasks();
     if(page==="monitor")loadMonitor();
     if(page==="audit")loadAudit();
+    if(page==="logs")loadLogContainers();
     if(page==="terminal")refreshTerminalList();
     if(page==="ide")listProjects();
   }
@@ -114,6 +115,7 @@
     if(app.page==="volumes")await loadVolumes();
     if(app.page==="networks")await loadNetworks();
     if(app.page==="tasks")await loadTasks();
+    if(app.page==="logs")await loadLogContainers();
   }
   function rowButton(action,label,id,extra=""){
     return '<button class="df-mini-btn '+esc(extra)+'" data-action="'+esc(action)+'" data-id="'+esc(id)+
@@ -213,6 +215,38 @@
 
 
 
+
+  // Os logs são snapshots sob demanda; não manter polling em containers de produção.
+  let logSnapshot="",logContainerName="";
+  async function loadLogContainers(){
+    try {
+      const containers=await api("/containers"),el=$("df-log-container"),selected=el.value;
+      el.innerHTML=containers.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join("");
+      if(containers.some(c=>c.id===selected))el.value=selected;
+      if(!containers.length)$("df-log-output").textContent="Nenhum container disponível.";
+    }catch(err){$("df-log-output").textContent=err.message;}
+  }
+  function filterLogs(){
+    const q=$("df-log-filter").value.toLocaleLowerCase("pt-BR");
+    const lines=logSnapshot.split("\n"),matched=q?lines.filter(line=>line.toLocaleLowerCase("pt-BR").includes(q)):lines;
+    $("df-log-output").textContent=matched.join("\n").slice(-150000);
+  }
+  async function fetchLogs(){
+    const id=$("df-log-container").value;
+    if(!id)return toast("Selecione um container",true);
+    $("df-log-output").textContent="Consultando...";
+    try {
+      const result=await api("/containers/logs","POST",{id,tail:Number($("df-log-tail").value)});
+      logSnapshot=result.logs||"";
+      logContainerName=$("df-log-container").selectedOptions[0]?.textContent||"container";
+      filterLogs();
+    }catch(err){$("df-log-output").textContent=err.message;toast(err.message,true);}
+  }
+  function exportLogs(){
+    if(!logSnapshot)return toast("Consulte os logs primeiro",true);
+    const safeName=logContainerName.replace(/[^a-z0-9_-]/gi,"_").slice(0,40);
+    download("dockerflow-"+safeName+"-logs.txt", $("df-log-output").textContent,"text/plain;charset=utf-8");
+  }
   async function loadAudit(){
     const box=$("df-audit-list");box.textContent="Analisando os containers...";
     try {
@@ -480,6 +514,9 @@
     $("df-network-create").onclick=createNetwork;
     $("df-task-refresh").onclick=loadTasks;
     $("df-audit-refresh").onclick=loadAudit;
+    $("df-log-refresh").onclick=fetchLogs;
+    $("df-log-filter").oninput=filterLogs;
+    $("df-log-download").onclick=exportLogs;
     $("df-image-clean").onclick=imageCleanup;
     $("df-volume-orphans").onclick=scanUnusedVolumes;
     $("df-monitor-refresh").onclick=loadMonitor;

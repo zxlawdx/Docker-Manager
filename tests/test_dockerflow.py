@@ -222,3 +222,43 @@ class AuditTests(unittest.TestCase):
         second = MagicMock(); second.name = "unused"; second.attrs = {"Driver": "local"}
         daemon.volumes.list.return_value = [first, second]
         self.assertEqual([x["name"] for x in unused_volumes(daemon)], ["unused"])
+
+class ImageMaintenanceTests(unittest.TestCase):
+    def setUp(self):
+        self.engine=MagicMock()
+        self.engine.ping.return_value=True
+        self.service=DockerService(client=self.engine)
+
+    def test_history_does_not_return_created_by_command(self):
+        image=MagicMock()
+        image.history.return_value=[{"Id":"layer","Created":123,"Size":420,
+                                     "CreatedBy":"RUN echo SENSITIVE"}]
+        self.engine.images.get.return_value=image
+        result=self.service.image_action("history",{"image":"test"})
+        self.assertNotIn("SENSITIVE",str(result))
+        self.assertEqual(result["history"][0]["size"],420)
+
+    def test_prune_preview_never_removes_images(self):
+        self.engine.images.list.return_value=[]
+        result=self.service.image_action("prune-preview",{})
+        self.assertEqual(result["count"],0)
+        self.engine.images.prune.assert_not_called()
+
+    def test_reject_invalid_image_tag_before_docker_api(self):
+        with self.assertRaisesRegex(ValueError,"Tag"):
+            self.service.image_action("tag",{"image":"source",
+                                            "repository":"valid-repo","tag":"bad tag!"})
+        self.engine.images.get.assert_not_called()
+
+class FrontendBindingTests(unittest.TestCase):
+    def test_required_canvas_and_observability_bindings_exist(self):
+        from pathlib import Path
+        base=Path(__file__).resolve().parents[1]/"apps"/"dockerflow"
+        template=(base/"templates"/"studio.html").read_text(encoding="utf-8")
+        frontend=(base/"static"/"js"/"studio.js").read_text(encoding="utf-8")
+        graph=(base/"static"/"js"/"graph.js").read_text(encoding="utf-8")
+        for token in ("df-deploy-preview","df-log-container","df-log-refresh",
+                      "df-audit-refresh","df-graph-apply","df-terminal-open"):
+            self.assertIn('id="'+token+'"',template)
+        self.assertIn('"df-log-refresh").onclick=fetchLogs',frontend)
+        self.assertIn('"df-deploy-preview").onclick=previewPlan',graph)

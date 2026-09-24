@@ -128,3 +128,9 @@ ser convertida em promessa de estabilidade.
 - [x] Identificador de volumes não referenciados inclusive por containers parados; sem exclusão automática.
 - [x] Histórico de camadas sem comandos de build, criação de tags e limpeza *dangling* somente mediante confirmação.
 - [ ] Scanner CVE/SBOM, backups consistentes e recuperação de volumes continuam pendentes.
+
+### Central de logs e revisão visual
+
+- [x] Central de logs de containers com consulta sob demanda, filtro de texto e exportação TXT; ainda sem stream, armazenamento durável ou pesquisa regex.
+- [x] Botão de pré-visualização do plano de execução antes de modificar o Docker.
+- [x] Testes unitários adicionais para ocultação de instruções sensíveis do histórico de imagens, análise de prune e bindings iniciais da UI.

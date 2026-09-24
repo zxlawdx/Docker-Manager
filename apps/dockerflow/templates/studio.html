@@ -8,6 +8,7 @@
       <button class="df-nav-item active" data-page="graph"><span class="df-icon">⌘</span> Laboratório visual <em>NOVO</em></button>
       <button class="df-nav-item" data-page="containers"><span class="df-icon">⬡</span> Containers</button>
       <button class="df-nav-item" data-page="images"><span class="df-icon">▤</span> Imagens</button>
+      <button class="df-nav-item" data-page="logs"><span class="df-icon">≡</span> Logs</button>
       <button class="df-nav-item" data-page="audit"><span class="df-icon">♢</span> Auditoria</button>
       <button class="df-nav-item" data-page="monitor"><span class="df-icon">▥</span> Monitoramento</button>
       <button class="df-nav-item" data-page="networks"><span class="df-icon">◉</span> Redes</button>
@@ -43,7 +44,7 @@
     <section class="df-page df-graph-page visible" data-content="graph">
       <div class="df-graph-header">
         <div><p class="df-eyebrow">DOCKER STUDIO / GRAPH</p><h1>Laboratório visual <sup>BETA</sup></h1><p>Um espaço para conectar serviços, redes e ideias.</p></div>
-        <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-graph-demo">◇ Exemplo</button><button class="df-btn df-btn-subtle" id="df-graph-load">↻ Importar Docker</button><button class="df-btn df-btn-subtle" id="df-graph-save">↓ JSON</button><button class="df-btn df-btn-subtle" id="df-diagram-save">◫ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-open">↑ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-diff">⇄ Comparar</button><button class="df-btn df-btn-primary" id="df-graph-apply">Aplicar alterações <span id="df-pending-count">0</span></button></div>
+        <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-graph-demo">◇ Exemplo</button><button class="df-btn df-btn-subtle" id="df-graph-load">↻ Importar Docker</button><button class="df-btn df-btn-subtle" id="df-graph-save">↓ JSON</button><button class="df-btn df-btn-subtle" id="df-diagram-save">◫ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-open">↑ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-diff">⇄ Comparar</button><button class="df-btn df-btn-subtle" id="df-deploy-preview">◉ Pré-visualizar</button><button class="df-btn df-btn-primary" id="df-graph-apply">Aplicar alterações <span id="df-pending-count">0</span></button></div>
       </div>
       <div class="df-studio-grid">
         <aside class="df-palette">
@@ -72,6 +73,15 @@
       <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / IMAGENS</p><h1>Biblioteca de imagens</h1><p>Baixe, remova e prepare novas imagens Docker.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-image-clean">Analisar limpeza</button><button class="df-btn df-btn-primary" id="df-image-pull">↓ Baixar imagem</button></div></div><div class="df-card"><div class="df-card-header"><strong>Imagens locais</strong></div><div id="df-image-list"></div></div>
     </section>
 
+    <section class="df-page" data-content="logs" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">DIAGNÓSTICO / LOGS</p><h1>Central de logs</h1><p>Consulta, filtro e exportação de snapshots. Sem streaming contínuo.</p></div>
+        <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-log-download">↓ Exportar</button><button class="df-btn df-btn-primary" id="df-log-refresh">↻ Consultar</button></div></div>
+      <div class="df-card df-logs-card"><div class="df-inline df-logs-controls">
+        <label class="df-field">Container<select id="df-log-container"></select></label>
+        <label class="df-field">Linhas<select id="df-log-tail"><option value="100">100</option><option value="250" selected>250</option><option value="500">500</option><option value="1000">1000</option></select></label>
+        <label class="df-field">Filtrar texto<input id="df-log-filter" placeholder="Nome, erro, mensagem..." autocomplete="off"></label>
+      </div><pre id="df-log-output" aria-live="polite">Escolha um container e consulte os logs.</pre></div>
+    </section>
     <section class="df-page" data-content="audit" hidden>
       <div class="df-pagehead"><div><p class="df-eyebrow">VERIFICAÇÃO / CONFIGURAÇÕES</p><h1>Auditoria de segurança</h1><p>Analise privilégios, montagens e portas dos containers sem modificar o Docker.</p></div><button class="df-btn df-btn-subtle" id="df-audit-refresh">↻ Reavaliar</button></div>
       <div class="df-card"><div class="df-card-header"><strong>Sinais para revisão</strong></div><div class="df-table-wrap" id="df-audit-list"></div></div>

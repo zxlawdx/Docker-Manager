@@ -275,3 +275,10 @@
 
 #dockerflow-root [data-content="monitor"] .df-card {margin-bottom:16px}
 #dockerflow-root #df-template-load {width:100%;margin:0 0 10px}
+
+#dockerflow-root .df-logs-controls {padding:18px;gap:12px;flex-wrap:wrap}
+#dockerflow-root .df-logs-controls .df-field {min-width:125px;flex:1}
+#dockerflow-root #df-log-output {background:#192f26;color:#d7f4e2;min-height:310px;
+ max-height:58vh;overflow:auto;padding:24px;white-space:pre-wrap;overflow-wrap:anywhere;
+ font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.75;
+ border-radius:0 0 12px 12px}

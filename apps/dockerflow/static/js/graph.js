@@ -71,6 +71,12 @@
         deps.toast("Projeto carregado como rascunho. Importe Docker para operar em recursos existentes.");
       }catch(e){deps.toast(e.message,true);}
     }
+    async function previewPlan(){
+      try{
+        const result=await deps.api("/graph/plan","POST",getDocument());
+        deps.showOutput("Plano antes da aplicação",JSON.stringify(result,null,2));
+      }catch(err){deps.toast(err.message,true);}
+    }
     async function compareDocker(){
       try{
         const result=await deps.api("/graph/drift","POST",{graph:getDocument()});
@@ -701,6 +707,7 @@
     $("df-diagram-save").onclick=saveProject;
     $("df-diagram-open").onclick=openProject;
     $("df-diagram-diff").onclick=compareDocker;
+    $("df-deploy-preview").onclick=previewPlan;
     $("df-graph-svg").onclick=exportSvg;
     $("df-graph-report").onclick=exportReport;
     $("df-template-load").onclick=()=>useTemplate($("df-template").value);
