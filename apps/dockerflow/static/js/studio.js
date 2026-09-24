@@ -168,7 +168,7 @@
           '<td>'+esc(c.networks.join(", ")||"—")+'</td><td><div class="df-row-actions">'+
           rowButton(c.status==="running"?"stop":"start",c.status==="running"?"Parar":"Iniciar",c.id)+
           rowButton("restart","Reiniciar",c.id)+rowButton("logs","Logs",c.id)+
-          rowButton("inspect","Inspecionar",c.id)+rowButton("exec","Terminal",c.id)+
+          rowButton("inspect","Inspecionar",c.id)+rowButton("processes","Processos",c.id)+rowButton("exec","Terminal",c.id)+
           rowButton("remove","Remover",c.id,"danger")+"</div></td></tr>").join("")+
           '</tbody></table>'+(rows.length?"":'<div class="df-empty">Nenhum container encontrado.</div>');
     }catch(err){$("df-container-list").innerHTML='<div class="df-empty">'+esc(err.message)+'</div>';}
@@ -179,6 +179,12 @@
       try{const result=await api("/containers/logs","POST",{id,tail:250});
         showOutput("Logs do container",result.logs||"Sem logs");}
       catch(err){toast(err.message,true);}return;
+    }
+    if(action==="processes"){
+      try{const result=await api("/containers/processes","POST",{id});
+        showOutput("Processos (sem argumentos sensíveis)",JSON.stringify(result,null,2));}
+      catch(err){toast(err.message,true);}
+      return;
     }
     if(action==="inspect"){
       try{const result=await api("/containers/inspect","POST",{id});
@@ -198,7 +204,8 @@
         {key:"image",label:"Imagem",value:"nginx:alpine"},
         {key:"host",label:"Porta do host (opcional)",value:"8080"},
         {key:"internal",label:"Porta do container",value:"80"},
-        {key:"network",label:"Rede existente (opcional)"},
+        {key:"network",label:"Rede existente (opcional, nome ou ID)"},
+         {key:"dns",label:"DNS próprios (IPs separados por vírgula)",value:""},
         {key:"environment",label:'Variáveis JSON, ex.: {"TZ":"UTC"}',value:"{}"},
         {key:"volumes",label:'Volumes JSON, ex.: [{"source":"dados","target":"/data"}]',value:"[]"},
         {key:"cpus",label:"Limite de CPUs (opcional)",value:""},
@@ -209,9 +216,10 @@
     if(!f)return;
     try{
       const environment=JSON.parse(f.environment||"{}"),volumes=JSON.parse(f.volumes||"[]");
+      const dns=f.dns.split(",").map(x=>x.trim()).filter(Boolean);
       const ports=f.host?[{host:f.host,container:f.internal}]:[];
       await api("/containers/create","POST",
-        {name:f.name,image:f.image,network:f.network,environment,volumes,ports,
+        {name:f.name,image:f.image,network:f.network,environment,volumes,ports,dns,
          cpus:f.cpus,memory_mb:f.memory_mb,restart:f.restart,read_only:f.read_only==="1"});
       toast("Container criado");await refresh();
     }catch(err){toast(err.message,true);}
@@ -360,14 +368,19 @@
     }catch(err){$("df-network-list").textContent=err.message;}
   }
   async function createNetwork(){
-    const data=await ask({title:"Rede bridge com IPAM",description:"Subnet e gateway são opcionais. Revise antes de criar no Docker.",
+    const data=await ask({title:"Rede bridge com IPAM",description:"IPv6 exige suporte no Docker Engine. Revise as sub-redes antes de criar.",
       fields:[{key:"name",label:"Nome",value:"rede-lab"},
               {key:"subnet",label:"Sub-rede CIDR (opcional)",value:""},
-              {key:"gateway",label:"Gateway (opcional)",value:""},
+              {key:"gateway",label:"Gateway IPv4 (opcional)",value:""},
+               {key:"ipv6_subnet",label:"Sub-rede IPv6 (ex.: fd12:3456::/64)",value:""},
+               {key:"ipv6_gateway",label:"Gateway IPv6 (opcional)",value:""},
+               {key:"enable_ipv6",label:"Ativar IPv6? 1=sim, 0=não",value:"0"},
               {key:"internal",label:"Isolada? 1=sim; 0=não",value:"0"}],confirmText:"Criar"});
     if(!data)return;
     try{await api("/networks/action","POST",{action:"create",name:data.name,
-      subnet:data.subnet,gateway:data.gateway,internal:data.internal==="1"});
+      subnet:data.subnet,gateway:data.gateway,
+       ipv6_subnet:data.ipv6_subnet,ipv6_gateway:data.ipv6_gateway,
+       enable_ipv6:data.enable_ipv6==="1"||!!data.ipv6_subnet,internal:data.internal==="1"});
       toast("Rede criada");await loadNetworks();}
     catch(err){toast(err.message,true);}
   }
@@ -381,20 +394,43 @@
       }else{
         const data=await ask({title:"Conectar container à rede "+n.name,
           fields:[{key:"container",label:"Nome ou ID do container",value:""},
-                  {key:"ipv4_address",label:"IPv4 fixo (opcional)",value:""}],confirmText:"Conectar"});
+                  {key:"ipv4_address",label:"IPv4 fixo (opcional)",value:""},
+                   {key:"ipv6_address",label:"IPv6 fixo (opcional)",value:""},
+                   {key:"aliases",label:"Aliases DNS separados por vírgula",value:""}],confirmText:"Conectar"});
         if(!data)return;
         await api("/networks/action","POST",{action:"connect",network:id,
-          container:data.container,ipv4_address:data.ipv4_address});
+          container:data.container,ipv4_address:data.ipv4_address,ipv6_address:data.ipv6_address,
+           aliases:data.aliases.split(",").map(a=>a.trim()).filter(Boolean)});
       }
       toast("Rede atualizada");await loadNetworks();
     }catch(err){toast(err.message,true);}
   }
+  async function diagnoseNetwork(){
+    let containers;
+    try{containers=(await api("/containers")).filter(c=>c.status==="running");}
+    catch(err){return toast(err.message,true);}
+    if(containers.length<2)return toast("Tenha ao menos dois containers em execução.",true);
+    const fields=[{key:"source",label:"Origem: nome ou ID",value:containers[0].name},
+      {key:"target",label:"Destino: nome ou ID",value:containers[1].name},
+      {key:"protocol",label:"Teste: dns, tcp ou http",value:"dns"},
+      {key:"port",label:"Porta do destino (para TCP/HTTP)",value:"80"}];
+    const values=await ask({title:"Diagnóstico de conectividade",
+      description:"Entre containers em execução. Algumas imagens não incluem getent/nc/wget.",
+      fields,confirmText:"Executar diagnóstico"});
+    if(!values)return;
+    try{const result=await api("/diagnostics/service","POST",values);
+      showOutput("Diagnóstico "+result.status+" · "+result.protocol,JSON.stringify(result,null,2));}
+    catch(err){toast(err.message,true);}
+  }
   async function loadVolumes(){
     try{
       const list=await api("/volumes");
-      $("df-volume-list").innerHTML='<table class="df-table"><thead><tr><th>Nome</th><th>Driver</th><th>Ação</th></tr></thead><tbody>'+
+      $("df-volume-list").innerHTML='<table class="df-table"><thead><tr><th>Nome</th><th>Driver</th><th>Referenciado por</th><th>Ações</th></tr></thead><tbody>'+
         list.map(v=>'<tr><td><b>'+esc(v.name)+'</b></td><td>'+esc(v.driver)+'</td><td>'+
-          rowButton("volume-remove","Remover",v.name,"danger")+'</td></tr>').join("")+
+          esc((v.containers||[]).join(", ")||"Sem referências")+'</td><td>'+
+          rowButton("volume-inspect","Inspecionar",v.name)+
+          (!(v.containers||[]).length?rowButton("volume-remove","Remover",v.name,"danger"):"")+
+          '</td></tr>').join("")+
         '</tbody></table>'+(list.length?"":'<div class="df-empty">Nenhum volume local.</div>');
     }catch(err){$("df-volume-list").innerHTML='<div class="df-empty">'+esc(err.message)+'</div>';}
   }
@@ -552,6 +588,7 @@
     $("df-image-pull").onclick=pullImage;
     $("df-volume-new").onclick=newVolume;
     $("df-network-create").onclick=createNetwork;
+    $("df-network-diagnose").onclick=diagnoseNetwork;
     $("df-task-refresh").onclick=loadTasks;
     $("df-audit-refresh").onclick=loadAudit;
     $("df-log-refresh").onclick=fetchLogs;
@@ -604,7 +641,12 @@
       })();
     });
     $("df-volume-list").addEventListener("click",e=>{
-      const btn=e.target.closest("[data-action]");if(btn&&btn.dataset.action==="volume-remove")removeVolume(btn.dataset.id);
+      const btn=e.target.closest("[data-action]");if(!btn)return;
+      if(btn.dataset.action==="volume-remove")removeVolume(btn.dataset.id);
+      if(btn.dataset.action==="volume-inspect")
+        api("/volumes/action","POST",{action:"inspect",name:btn.dataset.id})
+          .then(result=>showOutput("Detalhes do volume",JSON.stringify(result,null,2)))
+          .catch(err=>toast(err.message,true));
     });
     $("df-compose-validate").onclick=()=>composeAction("validate");
     $("df-compose-up").onclick=()=>composeAction("up");
