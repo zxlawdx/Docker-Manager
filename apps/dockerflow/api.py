@@ -1,5 +1,10 @@
 """Rotas HTTP do Vela. Ações Docker nunca ocorrem por arrastar: exigir Aplicar."""
 from vela.api import api
+from bottle import HTTPResponse
+import json
+import inspect
+from .services import security_service as security
+from .services.task_service import task_service as tasks
 from .services.docker_service import docker_service as d
 from .services.terminal_service import terminal_service as terminal
 from .services import compose_service as compose
@@ -52,6 +57,8 @@ def images():
 @api.post("/images/action")
 def images_action(context):
     data = body(context)
+    if data.get("action") in ("pull", "build"):
+        return tasks.submit("Imagem: " + str(data["action"]), d.image_action, data["action"], data)
     return safe(d.image_action, data.get("action"), data)
 
 @api.get("/networks")
@@ -107,6 +114,12 @@ def compose_load(context):
 @api.post("/compose/run")
 def compose_run(context):
     data = body(context)
+    if data.get("action") in ("up", "down"):
+        # Persistir conteúdo na requisição principal para impedir corridas com jobs.
+        return safe(lambda: (compose.save(data.get("name"), data["content"]) if
+                       data.get("content") is not None else None,
+                       tasks.submit("Compose " + data["action"], compose.execute,
+                                    data.get("name"), data.get("action")))[1])
     return safe(compose.execute, data.get("name"), data.get("action"),
                 data.get("content"))
 
@@ -118,3 +131,35 @@ def graph_compose(context):
 def compose_dockerfile(context):
     data = body(context)
     return safe(compose.save_dockerfile, data.get("name"), data.get("content"))
+
+@api.get("/tasks")
+def tasks_list():
+    return tasks.list()
+
+@api.post("/tasks/status")
+def tasks_status(context):
+    return safe(tasks.status, body(context).get("id"))
+
+@api.post("/tasks/cancel")
+def tasks_cancel(context):
+    return safe(tasks.cancel, body(context).get("id"))
+
+# A API compartilhada do Vela registra handlers globais. Encapsular SOMENTE
+# nossas rotas e declarar explicitamente context para receber headers do Bottle.
+for _route in api.routes:
+    _handler = _route["handler"]
+    if getattr(_handler, "__module__", "") != __name__:
+        continue
+
+    def _protected(context, handler=_handler):
+        try:
+            security.validate(context)
+        except PermissionError as exc:
+            return HTTPResponse(
+                body=json.dumps({"error": str(exc)}, ensure_ascii=False),
+                status=403, headers={"Content-Type": "application/json"})
+        if "context" in inspect.signature(handler).parameters:
+            return handler(context)
+        return handler()
+
+    _route["handler"] = _protected

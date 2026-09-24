@@ -11,11 +11,22 @@
     containers:"Containers",images:"Imagens",volumes:"Volumes",ide:"Compose IDE",terminal:"Terminal Docker"};
 
   async function api(path,method="GET",payload=null){
-    const opts={method,headers:{"Accept":"application/json"}};
+    const opts={method,headers:{"Accept":"application/json",
+      "X-DockerFlow-Token":$("dockerflow-root").dataset.apiToken}};
     if(payload!==null){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(payload);}
     const response=await fetch("/api"+path,opts);
     const result=await response.json();
     if(!response.ok || result?.error) throw new Error(result?.error||"Falha HTTP "+response.status);
+    if(result?.task_id && path!=="/tasks/status"){
+      toast("Tarefa iniciada: "+result.task_id.slice(0,8));
+      while(true){
+        await new Promise(resolve=>setTimeout(resolve,650));
+        const task=await api("/tasks/status","POST",{id:result.task_id});
+        if(task.state==="failed")throw new Error(task.error||"Falha na operação Docker");
+        if(task.state==="cancelled")throw new Error("Tarefa cancelada");
+        if(task.state==="done")return task.result;
+      }
+    }
     return result;
   }
   function toast(message,error=false){

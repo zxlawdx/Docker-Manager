@@ -8,6 +8,8 @@ from .docker_service import docker_service
 
 
 class TerminalService:
+    MAX_IDLE_SECONDS = 900
+
     def __init__(self):
         self.sessions = {}
         self.lock = Lock()
@@ -18,6 +20,7 @@ class TerminalService:
         container = docker_service.client.containers.get(container_id)
         if container.status != "running":
             raise ValueError("Inicie o contêiner para abrir o terminal")
+        self.reap()
         with self.lock:
             if len(self.sessions) >= 4:
                 raise ValueError("Feche outro terminal antes de criar uma sessão")
@@ -56,6 +59,7 @@ class TerminalService:
         return {"session": sid, "shell": shell}
 
     def poll(self, sid):
+        self.reap(exclude=sid)
         with self.lock:
             state = self.sessions.get(sid)
             if state is None:
@@ -76,6 +80,17 @@ class TerminalService:
             socket = state["socket"]
         socket._sock.sendall(data.encode("utf-8"))
         return {"ok": True}
+
+    def reap(self, exclude=None):
+        """Descarte sessões mortas ou abandonadas (sem encerrar a sessão consultada)."""
+        now = monotonic()
+        with self.lock:
+            expired = [sid for sid, state in self.sessions.items()
+                       if sid != exclude and (not state["alive"] or
+                          now - state["last"] > self.MAX_IDLE_SECONDS)]
+        for sid in expired:
+            self.close(sid)
+        return len(expired)
 
     def close(self, sid):
         with self.lock:
