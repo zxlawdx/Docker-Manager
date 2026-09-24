@@ -1,0 +1,10 @@
+-r requirements.txt
+pyinstaller==6.22.2
+pywebview==6.2.1
+PyQt6>=6.8,<7
+PyQt6-WebEngine>=6.8,<7
+qtpy>=2.4,<3
+jaraco.text
+jaraco.functools
+jaraco.context
+more-itertools

@@ -1,0 +1,284 @@
+/* DockerFlow: identidade editorial branca, sálvia e verde-floresta.
+   Todos os estilos são isolados do shell do Vela. Offline / sem Tailwind. */
+#dockerflow-root {
+  --df-ink:#1c3026; --df-muted:#78877e; --df-line:#e4eae4; --df-bg:#f8faf8;
+  --df-white:#fff; --df-green:#235940; --df-green-dark:#173f2e;
+  --df-sage:#eaf3e6; --df-lime:#d8efb9; --df-danger:#b14d41;
+  position:fixed;inset:0;z-index:11;display:flex;overflow:hidden;
+  color:var(--df-ink);background:var(--df-bg);font-family:Inter,"Segoe UI",Arial,sans-serif;
+  font-size:13px;letter-spacing:-.01em;
+}
+#dockerflow-root * { box-sizing:border-box }
+#dockerflow-root button,#dockerflow-root input,#dockerflow-root textarea,#dockerflow-root select {font:inherit}
+#dockerflow-root button {cursor:pointer;transition:background .14s,border-color .14s,transform .14s}
+#dockerflow-root button:focus-visible,#dockerflow-root input:focus-visible,
+#dockerflow-root textarea:focus-visible {outline:2px solid #8ac79a;outline-offset:2px}
+#dockerflow-root [hidden] {display:none!important}
+#dockerflow-root h1,#dockerflow-root h2,#dockerflow-root h3,#dockerflow-root p {margin:0}
+#dockerflow-root h1 {font-size:28px;letter-spacing:-.06em;line-height:1.18;font-weight:750}
+#dockerflow-root small {font-size:11px}
+#dockerflow-root .df-eyebrow {font-weight:800;letter-spacing:.18em;font-size:10px;color:#74a083;margin-bottom:10px}
+#dockerflow-root .df-rail {width:244px;flex:0 0 244px;background:#fdfefd;border-right:1px solid var(--df-line);
+  display:flex;flex-direction:column;padding:25px 15px 16px;z-index:2}
+#dockerflow-root .df-brand {display:flex;gap:12px;align-items:center;padding:0 9px;margin-bottom:45px}
+#dockerflow-root .df-brand-mark {width:36px;height:36px;border-radius:13px;background:var(--df-green);
+  display:grid;place-items:center;color:white;font-size:23px;position:relative}
+#dockerflow-root .df-mark-dot {width:7px;height:7px;display:block;position:absolute;bottom:6px;right:6px;background:#c5ed93;border-radius:50%}
+#dockerflow-root .df-brand strong {font-size:21px;font-weight:800;letter-spacing:-.08em;display:block;line-height:1}
+#dockerflow-root .df-brand strong span {color:#9cbd73}
+#dockerflow-root .df-brand small {font-size:8px;font-weight:800;color:#94a599;letter-spacing:.22em}
+#dockerflow-root .df-rail-group {font-size:9px;color:#a4b0a6;font-weight:800;letter-spacing:.18em;padding:0 17px 12px}
+#dockerflow-root .df-rail-gap {margin-top:31px}
+#dockerflow-root .df-nav-item {display:flex;width:100%;align-items:center;gap:11px;height:43px;border:0;
+  background:transparent;color:#68776e;border-radius:10px;text-align:left;padding:0 11px;margin-bottom:4px;font-weight:570}
+#dockerflow-root .df-nav-item:hover {background:#edf4eb;color:#2c6343}
+#dockerflow-root .df-nav-item.active {background:#e7f2e6;color:#236346;font-weight:750}
+#dockerflow-root .df-icon {width:21px;height:22px;text-align:center;font-size:19px;line-height:22px;color:#6d9078}
+#dockerflow-root .df-nav-item em {margin-left:auto;font-style:normal;font-size:8px;color:#4c7540;font-weight:800;
+  background:#d5e8c8;border-radius:5px;padding:4px 5px}
+#dockerflow-root .df-rail-bottom {margin-top:auto;padding:17px 7px 0;border-top:1px solid var(--df-line)}
+#dockerflow-root .df-host {display:flex;align-items:center;gap:10px;border:1px solid #e3e9e2;background:#f8faf7;
+  border-radius:11px;padding:12px 10px;margin-bottom:19px}
+#dockerflow-root #df-host-dot,#dockerflow-root #df-engine-dot {height:8px;width:8px;border-radius:50%;background:#c0b7a6;display:inline-block;flex-shrink:0}
+#dockerflow-root #df-host-dot.online,#dockerflow-root #df-engine-dot.online {background:#51a36b;box-shadow:0 0 0 4px #e3f3e8}
+#dockerflow-root .df-host b,#dockerflow-root .df-host small {display:block}
+#dockerflow-root .df-host small {font-size:10px;color:#8a9a90;margin-top:2px}
+#dockerflow-root .df-rail-bottom>span {font-size:9px;color:#adbaaf;letter-spacing:.16em;font-weight:800;padding-left:8px}
+#dockerflow-root .df-main {display:flex;min-width:0;flex:1;flex-direction:column}
+#dockerflow-root .df-topbar {height:68px;flex-shrink:0;background:rgba(255,255,255,.96);border-bottom:1px solid var(--df-line);
+  display:flex;align-items:center;justify-content:space-between;padding:0 33px}
+#dockerflow-root .df-breadcrumb {display:flex;gap:12px;color:#95a29a;align-items:center;font-size:12px}
+#dockerflow-root .df-breadcrumb b {color:#4b5b50;font-weight:720}
+#dockerflow-root .df-slash {font-size:18px;color:#d0d9d1}
+#dockerflow-root .df-top-actions,#dockerflow-root .df-inline {display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+#dockerflow-root .df-top-state {color:#728b76;font-size:11px;display:flex;gap:10px;align-items:center;margin-right:17px}
+#dockerflow-root .df-avatar {background:#d9eacb;border:2px solid #f5faf0;color:#376342;border-radius:14px;
+  width:36px;height:36px;font-size:11px;font-weight:850;margin-left:9px}
+#dockerflow-root .df-btn {border-radius:9px;border:1px solid transparent;white-space:nowrap;min-height:35px;
+  padding:8px 14px;display:inline-flex;gap:9px;align-items:center;justify-content:center;font-weight:660;font-size:11px}
+#dockerflow-root .df-btn:hover {transform:translateY(-1px)}
+#dockerflow-root .df-btn-primary {background:#285e43;color:white;box-shadow:0 4px 9px #17452f15}
+#dockerflow-root .df-btn-primary:hover {background:#18462f}
+#dockerflow-root .df-btn-subtle {background:white;color:#52685b;border-color:#dfe7df}
+#dockerflow-root .df-btn-subtle:hover {background:#edf6ea}
+#dockerflow-root .df-btn-warn {background:#fff6f2;color:#aa655b;border-color:#f2ddd7}
+#dockerflow-root .df-btn-warn:hover {background:#ffede7}
+#dockerflow-root .df-btn:disabled {opacity:.55;cursor:wait;transform:none}
+#dockerflow-root .df-btn-primary span {font:700 10px ui-monospace,monospace;border:1px solid #ffffff5b;
+  padding:1px 6px;background:#ffffff22;border-radius:6px}
+#dockerflow-root .df-page {display:none;flex:1;min-height:0;overflow:auto;padding:28px 36px}
+#dockerflow-root .df-page.visible {display:block}
+#dockerflow-root .df-pagehead,#dockerflow-root .df-graph-header {display:flex;justify-content:space-between;
+  align-items:center;gap:18px;margin-bottom:29px}
+#dockerflow-root .df-pagehead p:not(.df-eyebrow),#dockerflow-root .df-graph-header p:not(.df-eyebrow) {
+  color:#85958b;font-size:12px;margin-top:9px;letter-spacing:0}
+#dockerflow-root .df-graph-page {display:none;flex-direction:column;padding:27px 29px 20px;overflow:hidden;min-height:0}
+#dockerflow-root .df-graph-page.visible {display:flex}
+#dockerflow-root .df-graph-header {flex-shrink:0;margin-bottom:22px}
+#dockerflow-root .df-graph-header sup {font-size:9px;letter-spacing:.08em;vertical-align:middle;background:#e8f5e4;
+  color:#4b8655;border-radius:5px;padding:5px 7px;margin-left:7px}
+#dockerflow-root .df-studio-grid {display:grid;grid-template-columns:193px minmax(280px,1fr) 242px;
+  border:1px solid #e0e9e1;border-radius:15px;min-height:300px;flex:1;overflow:hidden;background:white;
+  box-shadow:0 12px 34px #2d5a3720}
+#dockerflow-root .df-palette,#dockerflow-root .df-inspector {background:#fdfefd;padding:18px 13px;border-right:1px solid var(--df-line);
+  display:flex;flex-direction:column;min-width:0}
+#dockerflow-root .df-inspector {border:0;border-left:1px solid var(--df-line)}
+#dockerflow-root .df-palette-intro {padding:0 6px 19px;display:flex;flex-direction:column;gap:5px}
+#dockerflow-root .df-palette-intro strong {font-size:13px}
+#dockerflow-root .df-palette-intro small {color:#abb7ad}
+#dockerflow-root .df-palette-item {border:1px solid #e2eae2;background:white;padding:12px 8px;display:flex;
+  gap:7px;align-items:center;border-radius:11px;cursor:grab;margin-bottom:10px;box-shadow:0 4px 7px #41634206}
+#dockerflow-root .df-palette-item:hover {border-color:#aacdab;background:#f3f9f0}
+#dockerflow-root .df-palette-item>div {display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+#dockerflow-root .df-palette-item b {font-size:11px}
+#dockerflow-root .df-palette-item small {color:#a1aea4;font-size:9px}
+#dockerflow-root .df-palette-item>span:last-child {color:#bcc8be;font-size:12px}
+#dockerflow-root .df-shape {height:31px;width:31px;display:grid;place-items:center;border-radius:8px;flex:0 0 31px}
+#dockerflow-root .df-shape-container {color:#286c49;background:#e3f5e2;font-size:21px}
+#dockerflow-root .df-shape-network {color:#62936f;background:#eff3df;font-size:23px}
+#dockerflow-root .df-palette-note {background:#f2f8ef;border:1px solid #e3efdf;border-radius:11px;padding:12px;margin-top:20px}
+#dockerflow-root .df-palette-note b {font-size:11px;color:#3c7450}
+#dockerflow-root .df-palette-note p {color:#789480;font-size:10px;line-height:1.6;margin-top:7px}
+#dockerflow-root .df-palette-foot {margin-top:auto;padding:19px 0 0}
+#dockerflow-root .df-palette-foot button {width:100%}
+#dockerflow-root .df-stage-wrap {min-width:0;display:flex;flex-direction:column;background:#fbfdfb}
+#dockerflow-root .df-canvas-toolbar {height:58px;background:white;padding:0 17px;border-bottom:1px solid #e7efe7;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:1}
+#dockerflow-root .df-canvas-toolbar strong,#dockerflow-root .df-canvas-toolbar span {display:block}
+#dockerflow-root .df-canvas-toolbar strong {font-size:12px}
+#dockerflow-root #df-graph-subtitle {font-size:10px;color:#a0ada4;margin-top:4px}
+#dockerflow-root .df-tool {width:28px;height:28px;display:grid;place-items:center;border:1px solid #e5ebe5;
+  background:#fbfdfa;border-radius:7px;color:#62826b;font-size:15px}
+#dockerflow-root .df-tool:hover {background:#e9f4e7}
+#dockerflow-root #df-zoom-label {font-family:ui-monospace,monospace;color:#8b9d90;font-size:10px;min-width:32px;text-align:center}
+#dockerflow-root #df-stage {flex:1;min-height:235px;overflow:hidden;position:relative;
+  background-color:#fbfdfb;background-image:radial-gradient(#cad6ca 1px,transparent 1px);
+  background-size:20px 20px;cursor:grab;touch-action:none}
+#dockerflow-root #df-stage:active {cursor:grabbing}
+#dockerflow-root #df-world {position:absolute;left:0;top:0;width:2400px;height:1700px;transform-origin:0 0}
+#dockerflow-root #df-edges {position:absolute;inset:0;width:2400px;height:1700px;overflow:visible;pointer-events:none}
+#dockerflow-root #df-edges path {pointer-events:stroke;cursor:pointer}
+#dockerflow-root #df-nodes {position:absolute;inset:0}
+#dockerflow-root .df-graph-node {position:absolute;width:174px;min-height:98px;background:white;cursor:move;
+  border:1.5px solid #d9e8db;border-radius:13px;box-shadow:0 8px 18px #193b2513;user-select:none}
+#dockerflow-root .df-graph-node.network {border-color:#d9e2c9;background:#fdfff9}
+#dockerflow-root .df-graph-node.draft {border-style:dashed}
+#dockerflow-root .df-graph-node.selected {border-color:#4d9467;box-shadow:0 0 0 3px #b6e5c04d,0 9px 19px #19422828}
+#dockerflow-root .df-node-bar {height:6px;background:#95cfa0;border-radius:12px 12px 0 0}
+#dockerflow-root .df-graph-node.network .df-node-bar {background:#b5c99a}
+#dockerflow-root .df-node-body {padding:12px 13px}
+#dockerflow-root .df-node-top {display:flex;gap:10px;align-items:center;margin-bottom:8px}
+#dockerflow-root .df-node-symbol {width:28px;height:28px;border-radius:8px;background:#eaf7eb;
+  color:#3c8060;display:grid;place-items:center;font-size:19px}
+#dockerflow-root .network .df-node-symbol {background:#f1f4e6;color:#8b9e68}
+#dockerflow-root .df-node-title {font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dockerflow-root .df-node-meta {font-size:9px;color:#93a498;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dockerflow-root .df-node-status {font-size:9px;color:#779585;border-top:1px solid #eff3ed;padding-top:7px}
+#dockerflow-root .df-port {width:13px;height:13px;border:3px solid white;border-radius:50%;position:absolute;
+  right:-7px;top:43px;background:#6ca881;box-shadow:0 0 0 1px #7cae89;cursor:crosshair;z-index:2}
+#dockerflow-root .network .df-port {background:#acbc81;box-shadow:0 0 0 1px #a9bc78;left:-7px;right:auto}
+#dockerflow-root .df-port.armed {background:#e1b85b;box-shadow:0 0 0 4px #f2dcae}
+#dockerflow-root .df-stage-hint {position:absolute;bottom:17px;left:15px;border:1px solid #e2eae2;background:#ffffffde;
+  border-radius:8px;padding:6px 9px;color:#98aa9b;font-size:10px;pointer-events:none}
+#dockerflow-root .df-canvas-footer {height:41px;flex-shrink:0;border-top:1px solid #e8efe8;background:white;
+  padding:0 15px;display:flex;align-items:center;justify-content:space-between;color:#99a89c;font-size:9px;gap:12px}
+#dockerflow-root .df-legend {width:8px;height:8px;border-radius:50%;display:inline-block;margin:0 4px 0 7px}
+#dockerflow-root .df-green {background:#75b48b}#dockerflow-root .df-sage {background:#b2c68e}#dockerflow-root .df-gray {background:#c3cfc4}
+#dockerflow-root .df-inspector-empty {margin:auto;color:#9aab9f;line-height:1.65;font-size:11px;text-align:center;padding:24px}
+#dockerflow-root .df-inspector .df-inspect-card {border-top:1px solid #eaf0ea;padding:15px 6px}
+#dockerflow-root .df-inspect-card h3 {font-size:14px;margin-bottom:15px}
+#dockerflow-root .df-inspect-card p {font-size:10px;line-height:1.7;color:#849788;margin-bottom:12px}
+#dockerflow-root .df-inspect-card .df-btn {width:100%;margin-top:8px}
+#dockerflow-root .df-field {display:flex;flex-direction:column;gap:7px;color:#607766;font-size:11px;font-weight:680;margin-bottom:14px}
+#dockerflow-root .df-field input,#dockerflow-root .df-field select,#dockerflow-root .df-field textarea {
+  border:1px solid #dae7dc;background:white;border-radius:9px;padding:9px;color:#35503b;min-width:0;width:100%;font-weight:480}
+#dockerflow-root .df-graph-foot {height:52px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:6px 5px}
+#dockerflow-root .df-graph-foot>div {display:flex;gap:13px;align-items:center}
+#dockerflow-root .df-graph-foot b {color:#51755c;font-size:11px}
+#dockerflow-root .df-graph-foot span {color:#a0aca2;font-size:10px}
+#dockerflow-root .df-metrics {display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:15px;margin:16px 0 30px}
+#dockerflow-root .df-metric {background:#fff;border:1px solid #e5eee6;border-radius:14px;padding:22px}
+#dockerflow-root .df-metric small {color:#92aa96;display:block;font-weight:700}
+#dockerflow-root .df-metric strong {display:block;font-size:33px;margin-top:15px;letter-spacing:-.06em}
+#dockerflow-root .df-card {background:white;border:1px solid #e5ede5;border-radius:14px;padding:0;overflow:hidden}
+#dockerflow-root .df-welcome {padding:37px;display:flex;align-items:center;justify-content:space-between;background:#ecf5e8}
+#dockerflow-root .df-welcome>div:first-child {max-width:480px}
+#dockerflow-root .df-welcome h2 {font-size:25px;letter-spacing:-.04em;margin:11px 0}
+#dockerflow-root .df-welcome p {color:#819985;font-size:12px;line-height:1.8;margin:9px 0 20px}
+#dockerflow-root .df-welcome-art {display:flex;align-items:center;gap:10px;transform:rotate(-8deg);margin:20px}
+#dockerflow-root .df-welcome-art span {padding:20px 14px;background:white;border:2px solid #b9d9b4;
+  box-shadow:0 12px 25px #214b291f;border-radius:13px;color:#457858;font-weight:850}
+#dockerflow-root .df-welcome-art i {display:block;width:30px;border-top:3px dashed #91bc8c}
+#dockerflow-root .df-card-header {border-bottom:1px solid #eef2ee;padding:19px 23px;display:flex;align-items:center;gap:12px}
+#dockerflow-root .df-count {border-radius:5px;background:#e8f3e6;padding:3px 7px;color:#519064;font-size:10px}
+#dockerflow-root .df-table-wrap {width:100%;overflow:auto}
+#dockerflow-root .df-table {width:100%;border-collapse:collapse;min-width:580px;text-align:left}
+#dockerflow-root .df-table th {padding:14px 21px;background:#fafcf9;font-size:10px;letter-spacing:.08em;color:#8ba18e}
+#dockerflow-root .df-table td {padding:16px 21px;border-top:1px solid #eef2ed;font-size:12px;color:#506756}
+#dockerflow-root .df-table td small {display:block;color:#a7b4a9;margin-top:5px}
+#dockerflow-root .df-badge {font-size:10px;background:#eef6e9;color:#47835c;padding:5px 9px;border-radius:20px}
+#dockerflow-root .df-badge.stopped {background:#f6f1ed;color:#b38570}
+#dockerflow-root .df-row-actions {display:flex;gap:5px;flex-wrap:wrap}
+#dockerflow-root .df-mini-btn {background:#f7faf6;border:1px solid #e3eee2;color:#55775d;
+  border-radius:6px;padding:7px 9px;font-size:10px}
+#dockerflow-root .df-mini-btn:hover {background:#e9f3e7}
+#dockerflow-root .df-mini-btn.danger {color:#af6257;border-color:#f3e5df}
+#dockerflow-root .df-ide-page.visible {display:flex;flex-direction:column;overflow:hidden}
+#dockerflow-root .df-ide-layout {display:grid;grid-template-columns:minmax(200px,1fr) 240px;flex:1;min-height:270px;gap:18px}
+#dockerflow-root .df-editor-card {display:flex;flex-direction:column;border:1px solid #dfe8e1;border-radius:13px;overflow:hidden;background:white}
+#dockerflow-root .df-editor-bar {flex-shrink:0;height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 17px;background:#f4f8f2;font-size:10px;color:#a3b5a5}
+#dockerflow-root .df-editor-tab {padding:10px;color:#438454}
+#dockerflow-root #df-yaml,#dockerflow-root #df-dockerfile {flex:1;width:100%;background:#fcfefb;color:#31523a;resize:none;padding:22px 23px;border:0;
+  font:13px/1.7 "Cascadia Code","Fira Code",ui-monospace,monospace;outline:0;tab-size:2}
+#dockerflow-root .df-ide-side {background:white;border:1px solid var(--df-line);border-radius:13px;padding:19px;overflow:auto}
+#dockerflow-root .df-ide-side h3 {font-size:14px;margin-bottom:8px}
+#dockerflow-root .df-ide-side>p {font-size:10px;color:#99ab9b;line-height:1.65;margin-bottom:20px}
+#dockerflow-root .df-wide {width:100%;margin:0 0 10px}
+#dockerflow-root .df-console {margin-top:13px;flex-shrink:0;height:118px;background:#142820;color:#a8d5af;border-radius:12px;overflow:auto}
+#dockerflow-root .df-console-title {font-size:9px;letter-spacing:.14em;color:#6da27e;padding:12px 18px 0}
+#dockerflow-root #df-compose-output {font:11px/1.55 ui-monospace,monospace;white-space:pre-wrap;margin:9px 18px}
+#dockerflow-root .df-terminal-controls {display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+#dockerflow-root .df-terminal-controls .df-field {min-width:150px}
+#dockerflow-root .df-terminal-controls .df-field:first-child {min-width:300px}
+#dockerflow-root .df-terminal-controls .df-btn {margin-bottom:14px}
+#dockerflow-root .df-terminal-card {height:min(60vh,650px);background:#13251c;border:1px solid #305641;border-radius:14px;
+  box-shadow:0 14px 29px #1c432129;display:flex;flex-direction:column;overflow:hidden}
+#dockerflow-root .df-terminal-title {height:41px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #294331;
+  color:#93af9c;font:10px ui-monospace,monospace;letter-spacing:.05em;padding:0 17px}
+#dockerflow-root .df-terminal-title i {display:inline-block;width:7px;height:7px;border-radius:50%;background:#65b17c;margin-right:8px}
+#dockerflow-root #df-terminal-output {flex:1;min-height:0;padding:20px 23px;margin:0;overflow:auto;white-space:pre-wrap;
+  overflow-wrap:anywhere;color:#bee1c1;font:13px/1.62 "Cascadia Code",ui-monospace,monospace}
+#dockerflow-root #df-terminal-input {min-height:41px;background:#192e23;border:0;border-top:1px solid #34563b;
+  outline:0!important;resize:none;color:#e1f3df;padding:11px 21px;font:12px ui-monospace,monospace}
+#dockerflow-root #df-notify {position:absolute;right:20px;bottom:23px;z-index:200;display:flex;flex-direction:column;gap:9px}
+#dockerflow-root .df-toast {background:#214c36;color:#f5fff5;border:1px solid #83af91;border-radius:10px;
+  padding:11px 17px;max-width:360px;box-shadow:0 11px 23px #294f2a3a}
+#dockerflow-root .df-toast.error {background:#713d38;border-color:#a97069}
+#dockerflow-root #df-modal {position:fixed;z-index:300;width:min(460px,94vw);border:1px solid #dce9df;
+  background:white;color:#274732;border-radius:16px;box-shadow:0 25px 80px #0a311a44;padding:26px}
+#dockerflow-root #df-modal::backdrop {background:#122e1d88;backdrop-filter:blur(3px)}
+#dockerflow-root #df-modal h2 {font-size:20px;letter-spacing:-.04em;margin-bottom:9px}
+#dockerflow-root #df-modal p {color:#839b87;font-size:12px;line-height:1.6;margin-bottom:17px}
+#dockerflow-root .df-modal-actions {display:flex;justify-content:end;gap:7px;margin-top:18px}
+#dockerflow-root .df-empty {padding:35px;text-align:center;color:#93a69a}
+#dockerflow-root .df-inspect-value {font:10px/1.7 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word;color:#73917d}
+@media(max-width:1230px){
+ #dockerflow-root .df-rail {width:194px;flex-basis:194px}
+ #dockerflow-root .df-studio-grid {grid-template-columns:155px minmax(220px,1fr) 198px}
+ #dockerflow-root .df-palette-note {display:none}
+ #dockerflow-root .df-graph-header h1 {font-size:23px}
+ #dockerflow-root .df-graph-footer>div span {display:none}
+}
+@media(max-width:920px){
+ #dockerflow-root .df-rail {width:60px;flex-basis:60px;padding:17px 7px}
+ #dockerflow-root .df-brand {padding:0 5px;margin-bottom:29px}
+ #dockerflow-root .df-brand>div:last-child,#dockerflow-root .df-rail-group,
+ #dockerflow-root .df-nav-item em,#dockerflow-root .df-rail-bottom {display:none}
+ #dockerflow-root .df-nav-item {font-size:0;padding:0;justify-content:center}
+ #dockerflow-root .df-icon {font-size:19px}
+ #dockerflow-root .df-studio-grid {grid-template-columns:0 minmax(250px,1fr) 190px}
+ #dockerflow-root .df-palette {display:none}
+ #dockerflow-root .df-page {padding:23px}
+ #dockerflow-root .df-metrics {grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:650px){
+ #dockerflow-root .df-studio-grid {grid-template-columns:minmax(220px,1fr)}
+ #dockerflow-root .df-inspector {display:none}
+ #dockerflow-root .df-topbar {padding:0 15px}
+ #dockerflow-root .df-top-state {display:none}
+ #dockerflow-root .df-graph-header {align-items:start;flex-direction:column}
+ #dockerflow-root .df-ide-layout {grid-template-columns:1fr;overflow:auto}
+ #dockerflow-root .df-ide-side {max-height:220px}
+ #dockerflow-root .df-graph-foot span {display:none}
+}
+
+#dockerflow-root .df-editor-tab {border:0;background:transparent;padding:11px 13px;color:#9aae9e;
+  border-bottom:2px solid transparent;border-radius:0;font:600 11px ui-monospace,monospace}
+#dockerflow-root .df-editor-tab:hover {background:#e9f5ea}
+#dockerflow-root .df-editor-tab.active {border-color:#3e8e5b;color:#2a7550}
+#dockerflow-root .df-dockerfile-actions {border-top:1px solid #e4ede4;padding-top:14px;margin-top:12px}
+
+#dockerflow-root #df-inspector-content {overflow-y:auto;overflow-x:hidden;flex:1;min-height:0}
+#dockerflow-root .df-inspect-card textarea {width:100%;min-height:78px;resize:vertical;
+  font:10px/1.55 ui-monospace,monospace;color:#34583e;border:1px solid #dae7dc;
+  border-radius:9px;padding:9px;background:white}
+#dockerflow-root .df-inspect-card .df-field select {width:100%;border:1px solid #dae7dc;
+  border-radius:9px;background:white;color:#34583e;padding:9px}
+
+/* DockerFlow 0.3: minimap contextual e Network Lab */
+#dockerflow-root #df-minimap {position:absolute;bottom:15px;right:15px;width:175px;height:112px;
+ background:#fffffff2;border:1px solid #dae8d9;border-radius:12px;box-shadow:0 6px 22px #17492b19;
+ pointer-events:none;z-index:4}
+#dockerflow-root #df-undo,#dockerflow-root #df-redo {font-size:17px}
+#dockerflow-root [data-content="networks"] .df-table-wrap {overflow:auto}
+@media(max-width:920px){#dockerflow-root #df-minimap{width:115px;height:75px}}
+
+#dockerflow-root [data-content="monitor"] .df-card {margin-bottom:16px}
+#dockerflow-root #df-template-load {width:100%;margin:0 0 10px}
+
+#dockerflow-root .df-logs-controls {padding:18px;gap:12px;flex-wrap:wrap}
+#dockerflow-root .df-logs-controls .df-field {min-width:125px;flex:1}
+#dockerflow-root #df-log-output {background:#192f26;color:#d7f4e2;min-height:310px;
+ max-height:58vh;overflow:auto;padding:24px;white-space:pre-wrap;overflow-wrap:anywhere;
+ font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.75;
+ border-radius:0 0 12px 12px}

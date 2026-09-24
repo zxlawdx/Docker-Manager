@@ -1,15 +1,5 @@
-certifi==2026.4.22
-charset-normalizer==3.4.7
-docker==7.1.0
-grpcio==1.80.0
-grpcio-tools==1.80.0
-idna==3.13
-protobuf==6.33.6
-PyQt6==6.11.0
-PyQt6-Qt6==6.11.0
-PyQt6_sip==13.11.1
-PyYAML==6.0.3
-requests==2.33.1
-setuptools==82.0.1
-typing_extensions==4.15.0
-urllib3==2.6.3
+# Pin no Vela 0.2.2 atual (corrige runtime pkg_resources + venv Linux).
+git+https://github.com/zxlawdx/Vela-framework.git@175d54f8b8997c70ea34bb302acce038944c2d56
+docker>=7.1,<8
+PyYAML>=6.0,<7
+platformdirs>=4.2,<5
