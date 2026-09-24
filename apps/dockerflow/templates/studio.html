@@ -8,6 +8,7 @@
       <button class="df-nav-item active" data-page="graph"><span class="df-icon">⌘</span> Laboratório visual <em>NOVO</em></button>
       <button class="df-nav-item" data-page="containers"><span class="df-icon">⬡</span> Containers</button>
       <button class="df-nav-item" data-page="images"><span class="df-icon">▤</span> Imagens</button>
+      <button class="df-nav-item" data-page="audit"><span class="df-icon">♢</span> Auditoria</button>
       <button class="df-nav-item" data-page="monitor"><span class="df-icon">▥</span> Monitoramento</button>
       <button class="df-nav-item" data-page="networks"><span class="df-icon">◉</span> Redes</button>
       <button class="df-nav-item" data-page="volumes"><span class="df-icon">◈</span> Volumes</button>
@@ -68,9 +69,13 @@
     </section>
 
     <section class="df-page" data-content="images" hidden>
-      <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / IMAGENS</p><h1>Biblioteca de imagens</h1><p>Baixe, remova e prepare novas imagens Docker.</p></div><button class="df-btn df-btn-primary" id="df-image-pull">↓ Baixar imagem</button></div><div class="df-card"><div class="df-card-header"><strong>Imagens locais</strong></div><div id="df-image-list"></div></div>
+      <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / IMAGENS</p><h1>Biblioteca de imagens</h1><p>Baixe, remova e prepare novas imagens Docker.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-image-clean">Analisar limpeza</button><button class="df-btn df-btn-primary" id="df-image-pull">↓ Baixar imagem</button></div></div><div class="df-card"><div class="df-card-header"><strong>Imagens locais</strong></div><div id="df-image-list"></div></div>
     </section>
 
+    <section class="df-page" data-content="audit" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">VERIFICAÇÃO / CONFIGURAÇÕES</p><h1>Auditoria de segurança</h1><p>Analise privilégios, montagens e portas dos containers sem modificar o Docker.</p></div><button class="df-btn df-btn-subtle" id="df-audit-refresh">↻ Reavaliar</button></div>
+      <div class="df-card"><div class="df-card-header"><strong>Sinais para revisão</strong></div><div class="df-table-wrap" id="df-audit-list"></div></div>
+    </section>
     <section class="df-page" data-content="monitor" hidden>
       <div class="df-pagehead"><div><p class="df-eyebrow">DOCKER ENGINE / OBSERVABILIDADE</p><h1>Monitoramento</h1><p>CPU, memória, tráfego e eventos sob demanda.</p></div><button class="df-btn df-btn-primary" id="df-monitor-refresh">↻ Medir agora</button></div>
       <div class="df-card"><div class="df-card-header"><strong>Containers em execução</strong></div><div id="df-monitor-list" class="df-table-wrap"></div></div>
@@ -86,7 +91,7 @@
       <div class="df-card"><div class="df-card-header"><strong>Últimas tarefas</strong></div><div id="df-task-list" class="df-table-wrap"></div></div>
     </section>
     <section class="df-page" data-content="volumes" hidden>
-      <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / VOLUMES</p><h1>Volumes & persistência</h1><p>Armazenamento de dados gerenciado pelo Docker.</p></div><button class="df-btn df-btn-primary" id="df-volume-new">+ Novo volume</button></div><div class="df-card"><div class="df-card-header"><strong>Volumes locais</strong></div><div id="df-volume-list"></div></div>
+      <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / VOLUMES</p><h1>Volumes & persistência</h1><p>Armazenamento de dados gerenciado pelo Docker.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-volume-orphans">Volumes órfãos</button><button class="df-btn df-btn-primary" id="df-volume-new">+ Novo volume</button></div></div><div class="df-card"><div class="df-card-header"><strong>Volumes locais</strong></div><div id="df-volume-list"></div></div>
     </section>
 
     <section class="df-page df-ide-page" data-content="ide" hidden>

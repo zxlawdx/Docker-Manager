@@ -121,3 +121,10 @@ Somente marque como concluído quando houver backend, interface utilizável,
 validação de entradas, documentação, testes unitários/integrados relevantes
 e teste manual da versão nativa na plataforma. Ausência de teste não pode
 ser convertida em promessa de estabilidade.
+
+### Atualizações adicionais
+
+- [x] Auditoria heurística somente leitura de containers (privileged, socket, usuário, portas e capabilities), sem expor ENV.
+- [x] Identificador de volumes não referenciados inclusive por containers parados; sem exclusão automática.
+- [x] Histórico de camadas sem comandos de build, criação de tags e limpeza *dangling* somente mediante confirmação.
+- [ ] Scanner CVE/SBOM, backups consistentes e recuperação de volumes continuam pendentes.

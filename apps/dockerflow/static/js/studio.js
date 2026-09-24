@@ -8,7 +8,7 @@
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
     terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
   const titles={overview:"Visão geral",graph:"Laboratório visual",
-    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",ide:"Compose IDE",terminal:"Terminal Docker"};
+    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",audit:"Auditoria",ide:"Compose IDE",terminal:"Terminal Docker"};
 
   async function api(path,method="GET",payload=null){
     const opts={method,headers:{"Accept":"application/json",
@@ -88,6 +88,7 @@
     if(page==="networks")loadNetworks();
     if(page==="tasks")loadTasks();
     if(page==="monitor")loadMonitor();
+    if(page==="audit")loadAudit();
     if(page==="terminal")refreshTerminalList();
     if(page==="ide")listProjects();
   }
@@ -180,7 +181,9 @@
       '<table class="df-table"><thead><tr><th>Imagem</th><th>ID</th><th>Tamanho</th><th>Ação</th></tr></thead><tbody>'+
       list.map(i=>'<tr><td><b>'+esc((i.tags||[]).join(", ")||"<sem tag>")+'</b></td>'+
        '<td>'+esc(i.id.slice(0,23))+'</td><td>'+((Number(i.size)||0)/1048576).toFixed(1)+' MB</td>'+
-       '<td>'+rowButton("image-remove","Remover",i.id,"danger")+'</td></tr>').join("")+
+       '<td>'+rowButton("image-history","Camadas",i.id)+
+        rowButton("image-tag","Criar tag",i.id)+
+        rowButton("image-remove","Remover",i.id,"danger")+'</td></tr>').join("")+
       '</tbody></table>'+(list.length?"":'<div class="df-empty">Nenhuma imagem local.</div>');
       $("df-image-build").onclick=buildImage;
     }catch(err){$("df-image-list").innerHTML='<div class="df-empty">'+esc(err.message)+'</div>';}
@@ -209,6 +212,37 @@
   }
 
 
+
+  async function loadAudit(){
+    const box=$("df-audit-list");box.textContent="Analisando os containers...";
+    try {
+      const audit=await api("/audit/containers");
+      box.innerHTML='<table class="df-table"><thead><tr><th>Container</th><th>Estado</th><th>Verificações</th></tr></thead><tbody>'+
+        audit.containers.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+esc(c.status)+'</td><td>'+
+          (c.notes.length?c.notes.map(note=>'<p>'+esc(note)+'</p>').join(""):"Nenhum sinal detectado")+
+          '</td></tr>').join("")+'</tbody></table><div class="df-empty">'+esc(audit.note)+'</div>';
+    } catch(err){box.textContent=err.message;}
+  }
+  async function imageCleanup(){
+    try {
+      const preview=await api("/images/action","POST",{action:"prune-preview"});
+      if(!preview.count)return toast("Nenhuma imagem dangling encontrada.");
+      if(!(await confirmed("Limpar imagens dangling?",
+        preview.count+" imagem(ns) sem tag. O espaço recuperado depende de camadas compartilhadas.",
+        "Limpar")))return;
+      const result=await api("/images/action","POST",{action:"prune"});
+      toast("Espaço recuperado segundo Docker: "+(Number(result.space_reclaimed)/1048576).toFixed(1)+" MiB");
+      await loadImages();
+    } catch(err){toast(err.message,true);}
+  }
+  async function scanUnusedVolumes(){
+    try {
+      const volumes=await api("/audit/unused-volumes");
+      showOutput("Volumes sem uso aparente",
+        volumes.length?volumes.map(v=>v.name+" ("+v.driver+")").join("\n"):
+        "Nenhum volume sem referências de containers encontrado.");
+    } catch(err){toast(err.message,true);}
+  }
   async function loadMonitor(){
     const display=$("df-monitor-list"),events=$("df-monitor-events");
     display.textContent="Coletando dados do Docker...";
@@ -445,6 +479,9 @@
     $("df-volume-new").onclick=newVolume;
     $("df-network-create").onclick=createNetwork;
     $("df-task-refresh").onclick=loadTasks;
+    $("df-audit-refresh").onclick=loadAudit;
+    $("df-image-clean").onclick=imageCleanup;
+    $("df-volume-orphans").onclick=scanUnusedVolumes;
     $("df-monitor-refresh").onclick=loadMonitor;
     $("df-monitor-storage").onclick=async()=>{
       try{const result=await api("/diagnostics/storage");showOutput("Docker: uso de disco",JSON.stringify(result,null,2));}
@@ -470,7 +507,24 @@
       const btn=e.target.closest("[data-action]");if(btn)containerAction(btn.dataset.action,btn.dataset.id);
     });
     $("df-image-list").addEventListener("click",e=>{
-      const btn=e.target.closest("[data-action]");if(btn&&btn.dataset.action==="image-remove")removeImage(btn.dataset.id);
+      const btn=e.target.closest("[data-action]");
+      if(!btn)return;
+      if(btn.dataset.action==="image-remove")removeImage(btn.dataset.id);
+      if(btn.dataset.action==="image-history"){
+        api("/images/action","POST",{action:"history",image:btn.dataset.id})
+          .then(data=>showOutput("Camadas (sem comandos de build)",JSON.stringify(data,null,2)))
+          .catch(err=>toast(err.message,true));
+      }
+      if(btn.dataset.action==="image-tag")(async()=>{
+        const values=await ask({title:"Criar tag",fields:[
+          {key:"repository",label:"Repositório",value:"minha-imagem"},
+          {key:"tag",label:"Tag",value:"dev"}],confirmText:"Criar"});
+        if(!values)return;
+        try {
+          await api("/images/action","POST",{action:"tag",image:btn.dataset.id,...values});
+          toast("Tag criada");await loadImages();
+        } catch(err){toast(err.message,true);}
+      })();
     });
     $("df-volume-list").addEventListener("click",e=>{
       const btn=e.target.closest("[data-action]");if(btn&&btn.dataset.action==="volume-remove")removeVolume(btn.dataset.id);
