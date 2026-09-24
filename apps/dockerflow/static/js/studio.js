@@ -6,7 +6,7 @@
   const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g,
     c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
-    terminal:null,pollTimer:null,containers:[],networks:[]};
+    terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
   const titles={overview:"Visão geral",graph:"Laboratório visual",
     containers:"Containers",images:"Imagens",volumes:"Volumes",ide:"Compose IDE",terminal:"Terminal Docker"};
 
@@ -77,7 +77,7 @@
     if(page==="terminal")refreshTerminalList();
     if(page==="ide")listProjects();
   }
-  function setYaml(text){$("df-yaml").value=text;}
+  function setYaml(text){$("df-yaml").value=text;switchEditor("compose");}
   function renderOverview(){
     const o=app.overview;
     $("df-engine-status").textContent=o.online?"Engine v"+(o.engine||"?"):"Docker offline";
@@ -240,9 +240,56 @@
     const name=$("df-project-list").value;
     if(!name)return toast("Selecione um projeto salvo",true);
     try{const result=await api("/compose/load","POST",{name});
-      $("df-project").value=name;setYaml(result.content);toast("Projeto carregado");}
+      $("df-project").value=name;setYaml(result.content);
+      $("df-dockerfile").value=result.dockerfile||"";toast("Projeto carregado");}
     catch(err){toast(err.message,true);}
   }
+
+  // --------------------------------------------------------
+  // Editor duplo: Compose e Dockerfile, sem dependência de CDN.
+  // --------------------------------------------------------
+  const snippets = {
+    python: 'FROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nCMD ["python", "app.py"]\n',
+    node: 'FROM node:22-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci --omit=dev\nCOPY . .\nEXPOSE 3000\nCMD ["node", "server.js"]\n',
+    nginx: 'FROM nginx:alpine\nCOPY ./dist /usr/share/nginx/html\nEXPOSE 80\n',
+    go: 'FROM golang:1.24-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN go build -o /server .\nFROM alpine:latest\nCOPY --from=build /server /server\nCMD ["/server"]\n',
+    postgres: 'FROM postgres:16-alpine\nENV POSTGRES_DB=mydb\nEXPOSE 5432\n'
+  };
+  function switchEditor(mode) {
+    app.editorMode = mode === "dockerfile" ? "dockerfile" : "compose";
+    const dockerfile = app.editorMode === "dockerfile";
+    $("df-yaml").hidden=dockerfile;
+    $("df-dockerfile").hidden=!dockerfile;
+    $("df-editor-mode").textContent=dockerfile?"DOCKERFILE · UTF-8":"YAML · UTF-8";
+    document.querySelectorAll("[data-editor]").forEach(el=>
+      el.classList.toggle("active",el.dataset.editor===app.editorMode));
+    document.querySelectorAll(".df-dockerfile-actions").forEach(el=>el.hidden=!dockerfile);
+    document.querySelectorAll(".df-compose-action").forEach(el=>el.hidden=dockerfile);
+  }
+  async function saveDockerfile() {
+    const name=$("df-project").value.trim(),content=$("df-dockerfile").value;
+    const result=await api("/compose/dockerfile","POST",{name,content});
+    toast("Dockerfile salvo no workspace local");
+    return result.folder;
+  }
+  async function buildDockerfile() {
+    const tag=$("df-dockerfile-tag").value.trim();
+    if(!tag)return toast("Informe uma tag para a imagem",true);
+    if(!(await confirmed("Construir imagem?",
+      "O Dockerfile será salvo e executado com o contexto isolado deste projeto. COPY precisa de arquivos que já estejam neste workspace.",
+      "Iniciar build")))return;
+    try {
+      $("df-compose-output").textContent="Build: "+tag+"...";
+      const folder=await saveDockerfile();
+      const result=await api("/images/action","POST",{action:"build",path:folder,tag});
+      $("df-compose-output").textContent=result.log||"Imagem criada: "+result.id;
+      toast("Imagem Docker criada");refresh();
+    } catch(err) {
+      $("df-compose-output").textContent="Falha: "+err.message;
+      toast(err.message,true);
+    }
+  }
+
   async function refreshTerminalList(){
     try{
       const containers=await api("/containers");
@@ -320,21 +367,49 @@
     $("df-compose-down").onclick=()=>composeAction("down");
     $("df-compose-save").onclick=()=>composeAction("save");
     $("df-compose-load").onclick=loadProject;
+
+    // O seletor e os comandos de arquivo acompanham a aba ativa.
+    document.querySelectorAll("[data-editor]").forEach(el=>
+      el.addEventListener("click",()=>switchEditor(el.dataset.editor)));
+    $("df-dockerfile-template").onclick=async()=>{
+      const name=$("df-dockerfile-snippet").value;
+      if($("df-dockerfile").value.trim() &&
+        !(await confirmed("Substituir Dockerfile?",
+          "O conteúdo atual será substituído pelo template selecionado.","Substituir")))return;
+      $("df-dockerfile").value=snippets[name]||"";
+      toast("Template inserido: "+name);
+    };
+    $("df-dockerfile-save").onclick=async()=>{
+      try{await saveDockerfile();}catch(err){toast(err.message,true);}
+    };
+    $("df-dockerfile-build").onclick=buildDockerfile;
     $("df-ide-open").onclick=()=>$("df-ide-file").click();
     $("df-ide-file").onchange=async e=>{
-      const f=e.target.files[0];
-      if(f){setYaml(await f.text());toast("Arquivo YAML importado");}
+      const file=e.target.files[0];
+      if(file){
+        const editor=app.editorMode==="dockerfile"?$("df-dockerfile"):$("df-yaml");
+        editor.value=await file.text();
+        toast(file.name+" importado para o editor");
+      }
       e.target.value="";
     };
-    $("df-ide-export").onclick=()=>download("docker-compose.yml",$("df-yaml").value,"text/yaml");
-    $("df-yaml").addEventListener("keydown",e=>{
-      if(e.key==="Tab"){
-        e.preventDefault();const s=e.target.selectionStart,t=e.target.selectionEnd;
-        e.target.setRangeText("  ",s,t,"end");
-      }
-      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){
-        e.preventDefault();composeAction("save");
-      }
+    $("df-ide-export").onclick=()=>{
+      const dockerfile=app.editorMode==="dockerfile";
+      download(dockerfile?"Dockerfile":"docker-compose.yml",
+        $(dockerfile?"df-dockerfile":"df-yaml").value,dockerfile?"text/plain":"text/yaml");
+    };
+    [$("df-yaml"),$("df-dockerfile")].forEach(editor=>{
+      editor.addEventListener("keydown",e=>{
+        if(e.key==="Tab"){
+          e.preventDefault();
+          e.target.setRangeText("  ",e.target.selectionStart,e.target.selectionEnd,"end");
+        }
+        if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){
+          e.preventDefault();
+          if(app.editorMode==="dockerfile")saveDockerfile().catch(err=>toast(err.message,true));
+          else composeAction("save");
+        }
+      });
     });
     $("df-terminal-open").onclick=()=>openTerminal();
     $("df-terminal-close").onclick=closeTerminal;
