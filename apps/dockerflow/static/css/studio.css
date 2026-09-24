@@ -188,7 +188,7 @@
 #dockerflow-root .df-editor-card {display:flex;flex-direction:column;border:1px solid #dfe8e1;border-radius:13px;overflow:hidden;background:white}
 #dockerflow-root .df-editor-bar {flex-shrink:0;height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 17px;background:#f4f8f2;font-size:10px;color:#a3b5a5}
 #dockerflow-root .df-editor-tab {padding:10px;color:#438454}
-#dockerflow-root #df-yaml {flex:1;width:100%;background:#fcfefb;color:#31523a;resize:none;padding:22px 23px;border:0;
+#dockerflow-root #df-yaml,#dockerflow-root #df-dockerfile {flex:1;width:100%;background:#fcfefb;color:#31523a;resize:none;padding:22px 23px;border:0;
   font:13px/1.7 "Cascadia Code","Fira Code",ui-monospace,monospace;outline:0;tab-size:2}
 #dockerflow-root .df-ide-side {background:white;border:1px solid var(--df-line);border-radius:13px;padding:19px;overflow:auto}
 #dockerflow-root .df-ide-side h3 {font-size:14px;margin-bottom:8px}
@@ -251,3 +251,9 @@
  #dockerflow-root .df-ide-side {max-height:220px}
  #dockerflow-root .df-graph-foot span {display:none}
 }
+
+#dockerflow-root .df-editor-tab {border:0;background:transparent;padding:11px 13px;color:#9aae9e;
+  border-bottom:2px solid transparent;border-radius:0;font:600 11px ui-monospace,monospace}
+#dockerflow-root .df-editor-tab:hover {background:#e9f5ea}
+#dockerflow-root .df-editor-tab.active {border-color:#3e8e5b;color:#2a7550}
+#dockerflow-root .df-dockerfile-actions {border-top:1px solid #e4ede4;padding-top:14px;margin-top:12px}
