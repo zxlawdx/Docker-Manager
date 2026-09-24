@@ -131,6 +131,20 @@
     if(page==="ide"){listProjects();refreshEditorVisual();}
   }
   function setYaml(text){$("df-yaml").value=text;switchEditor("compose");}
+  async function loadTemplateCatalog(){
+    try{
+      const templates=await api("/templates");
+      const options=templates.map(t=>'<option value="'+esc(t.id)+'">'+
+        esc(t.category+' · '+t.title)+'</option>').join("");
+      const graphSelect=$("df-template");
+      // Manter as três topologias originais como opções de laboratório.
+      if(!graphSelect.dataset.catalogLoaded){
+        graphSelect.insertAdjacentHTML("beforeend",options);
+        graphSelect.dataset.catalogLoaded="1";
+      }
+      $("df-ide-template").innerHTML='<option value="">Escolha um serviço ou stack YAML...</option>'+options;
+    }catch(e){toast("Catálogo de templates indisponível: "+e.message,true);}
+  }
   function renderOverview(){
     const o=app.overview;
     $("df-engine-status").textContent=o.online?"Engine v"+(o.engine||"?"):"Docker offline";
@@ -678,6 +692,21 @@
     $("df-compose-down").onclick=()=>composeAction("down");
     $("df-compose-save").onclick=()=>composeAction("save");
     $("df-compose-load").onclick=loadProject;
+    $("df-ide-template-load").onclick=async()=>{
+      const id=$("df-ide-template").value;
+      if(!id)return toast("Selecione um template Docker/YAML.",true);
+      if($("df-yaml").value.trim() &&
+        !(await confirmed("Substituir YAML?",
+          "Atenção: o editor atual será substituído pelo template. Salve o conteúdo atual antes.",
+          "Substituir")))return;
+      try{
+        const template=await api("/templates/compose","POST",{id});
+        setYaml(template.content);
+        toast("Template inserido: "+template.title+
+          (template.notes?". Consulte a orientação do template.":""));
+        if(template.notes)showOutput("Notas do template",template.notes);
+      }catch(e){toast(e.message,true);}
+    };
 
     // O seletor e os comandos de arquivo acompanham a aba ativa.
     document.querySelectorAll("[data-editor]").forEach(el=>
@@ -766,6 +795,7 @@
     if(!$("dockerflow-root"))return;
     app.mounted=true;setupAppearance();bind();navigate("graph");
     app.graph=window.DockerGraph({api,toast,ask,setYaml,navigate,refresh,download,openTerminal,showOutput});
+    await loadTemplateCatalog();
     await refresh();
     if(app.overview.online){
       try{await app.graph.importDocker(true);}

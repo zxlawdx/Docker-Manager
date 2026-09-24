@@ -238,10 +238,17 @@
           redis:{image:"redis:7-alpine",networks:["internal"]}
         },networks:{edge:{},internal:{internal:true}}}
       };
-      if(!templates[name])return;
-      if(draftCount() && !(await deps.ask({title:"Substituir rascunho?",fields:[]})))return;
-      const result=await deps.api("/graph/from-compose","POST",{content:toYamlTemplate(templates[name])});
-      loadGraph(result);deps.toast("Topologia de exemplo carregada. Ajuste os serviços antes de aplicar.");
+      if(!name)return deps.toast("Selecione um template.",true);
+      if(draftCount() && !(await deps.ask({title:"Substituir rascunho?",
+        description:"Este template substituirá o desenho atual. Exporte JSON para conservar seu trabalho.",fields:[]})))return;
+      try{
+        const source=templates[name]?{content:toYamlTemplate(templates[name]),title:name,notes:""}:
+          await deps.api("/templates/compose","POST",{id:name});
+        const result=await deps.api("/graph/from-compose","POST",{content:source.content});
+        loadGraph(result);
+        deps.toast("Template "+source.title+" carregado como rascunho. Revise redes e credenciais antes de aplicar.");
+        if(source.notes)deps.showOutput("Orientações do template",source.notes);
+      }catch(err){deps.toast(err.message,true);}
     }
     function toYamlTemplate(t){
       // Os templates simples evitam adicionar dependências de YAML no frontend.
@@ -436,6 +443,9 @@
       catch(_) {throw new Error("JSON de ambiente inválido no container "+n.name);}
       if(!environment || typeof environment!=="object" || Array.isArray(environment))
         throw new Error("Variáveis do container "+n.name+" precisam ser um objeto JSON.");
+      if(Object.values(environment).some(v=>typeof v==="string"&&/\$\{[^}]+\}/.test(v)))
+        throw new Error("Preencha as credenciais pendentes de "+n.name+
+          " antes de criar containers reais. Na IDE Compose, placeholders são resolvidos pelo ambiente.");
       const ports=[],host=String(n.host_port||"").trim(),inside=String(n.container_port||"").trim();
       if(host||inside){
         if(!host||!inside||![host,inside].every(v=>/^\d+$/.test(v)&&Number(v)>0&&Number(v)<65536))
