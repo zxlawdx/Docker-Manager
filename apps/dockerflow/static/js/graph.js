@@ -88,6 +88,51 @@
       return '<label class="df-field">'+esc(label)+'<input data-edit="'+esc(attribute)+
         '" '+(disabled?'disabled ':'')+'value="'+esc(value)+'"></label>';
     }
+
+    const imagePresets = {
+      custom:{image:"",port:"",env:{}},
+      nginx:{image:"nginx:alpine",port:"80",env:{}},
+      redis:{image:"redis:7-alpine",port:"6379",env:{}},
+      postgres:{image:"postgres:16",port:"5432",env:{POSTGRES_PASSWORD:""}},
+      mysql:{image:"mysql:8",port:"3306",env:{MYSQL_ROOT_PASSWORD:""}},
+      mongo:{image:"mongo:7",port:"27017",env:{MONGO_INITDB_ROOT_USERNAME:"",MONGO_INITDB_ROOT_PASSWORD:""}},
+      python:{image:"python:3.12-slim",port:"5000",env:{}},
+      node:{image:"node:22-alpine",port:"3000",env:{}}
+    };
+    function advancedContainer(n) {
+      if(n.existing) return '<p>Edite portas, volumes e variáveis de containers existentes pelo Compose ou recriando-os.</p>';
+      const options=Object.keys(imagePresets).map(k=>
+        '<option value="'+esc(k)+'">'+esc(k==="custom"?"Personalizado":
+          k[0].toUpperCase()+k.slice(1))+'</option>').join("");
+      return '<label class="df-field">Preset rápido<select data-preset>'+
+        options+'</select></label>'+
+        field("Porta do host (opcional)",n.host_port||"","host_port")+
+        field("Porta do container",n.container_port||"","container_port")+
+        '<label class="df-field">Variáveis de ambiente (JSON)'+
+        '<textarea data-edit="env_text" rows="4" spellcheck="false" placeholder="{ }">'+
+        esc(n.env_text||"{}")+'</textarea></label>';
+    }
+    function containerPayload(n) {
+      let environment;
+      try {environment=JSON.parse(n.env_text||"{}");}
+      catch(_) {throw new Error("JSON de ambiente inválido no container "+n.name);}
+      if(!environment || typeof environment!=="object" || Array.isArray(environment))
+        throw new Error("Variáveis do container "+n.name+" precisam ser um objeto JSON.");
+      const ports=[],host=String(n.host_port||"").trim(),inside=String(n.container_port||"").trim();
+      if(host||inside){
+        if(!host||!inside||![host,inside].every(v=>/^\d+$/.test(v)&&Number(v)>0&&Number(v)<65536))
+          throw new Error("Informe portas do host E do container entre 1 e 65535 em "+n.name);
+        ports.push({host,container:inside});
+      }
+      const img=String(n.image||"").toLowerCase();
+      if(img.startsWith("postgres") && !environment.POSTGRES_PASSWORD && environment.POSTGRES_HOST_AUTH_METHOD!=="trust")
+        throw new Error("Configure POSTGRES_PASSWORD em "+n.name+" (não é definido automaticamente).");
+      if(img.startsWith("mysql") && !environment.MYSQL_ROOT_PASSWORD &&
+         !environment.MYSQL_ALLOW_EMPTY_PASSWORD && !environment.MYSQL_RANDOM_ROOT_PASSWORD)
+        throw new Error("Configure MYSQL_ROOT_PASSWORD em "+n.name+".");
+      return {name:n.name,image:n.image,network:null,ports,volumes:[],environment};
+    }
+
     function renderInspector() {
       const selected=state.selected;
       if (!selected) {
@@ -112,7 +157,7 @@
       $("df-selection-tip").textContent=(n.kind==="container"?"Container · ":"Rede · ")+n.name;
       inspector.innerHTML='<p class="df-eyebrow">PROPRIEDADES / '+esc(n.kind.toUpperCase())+
         '</p><h3>'+esc(n.name)+'</h3>'+field("Nome",n.name,"name",n.existing)+
-        (n.kind==="container"?field("Imagem",n.image||"","image",n.existing):
+        (n.kind==="container"?field("Imagem",n.image||"","image",n.existing)+advancedContainer(n):
           '<label class="df-field">Driver<input value="bridge" disabled></label>'+
           (!n.existing?'<label class="df-field"><span><input style="width:auto" type="checkbox" data-internal '+
             (n.internal?'checked':'')+'> Somente interna</span></label>':""))+
@@ -236,6 +281,9 @@
     async function apply() {
       if(!draftCount())return deps.toast("Nenhuma alteração pendente");
       const planned=state.nodes.filter(n=>!n.existing);
+      let payloads;
+      try {payloads=new Map(planned.filter(n=>n.kind==="container").map(n=>[n.id,containerPayload(n)]));}
+      catch(err){return deps.toast(err.message,true);}
       const count=state.edges.filter(e=>!e.persisted).length;
       const accepted=await deps.ask({
         title:"Aplicar alterações ao Docker?",
@@ -254,7 +302,7 @@
         // 2. Containers devem existir antes dos vínculos de rede.
         for(const n of planned.filter(x=>x.kind==="container")){
           const result=await deps.api("/containers/create","POST",
-            {name:n.name,image:n.image,network:null,ports:[],volumes:[],environment:{}});
+            payloads.get(n.id));
           n.dockerId=result.id;n.existing=true;n.status="running";
         }
         // 3. Aplicar SOMENTE as novas conexões, com id Docker resolvido.
@@ -403,6 +451,11 @@
       if(!n||n.existing)return;
       if(e.target.dataset.edit){n[e.target.dataset.edit]=e.target.value;render();}
       if(e.target.hasAttribute("data-internal")){n.internal=e.target.checked;}
+      if(e.target.hasAttribute("data-preset")){
+        const preset=imagePresets[e.target.value];
+        if(preset){n.image=preset.image;n.container_port=preset.port;n.host_port="";
+          n.env_text=JSON.stringify(preset.env,null,2);render();}
+      }
     });
     inspector.addEventListener("click",async e=>{
       const action=e.target.closest("[data-graph-action]")?.dataset.graphAction;
