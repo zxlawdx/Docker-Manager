@@ -93,4 +93,19 @@ networks: {}
   <div id="df-notify" aria-live="polite"></div>
   <dialog id="df-modal"><form method="dialog" id="df-modal-form"><h2 id="df-modal-title"></h2><p id="df-modal-description"></p><div id="df-modal-fields"></div><div class="df-modal-actions"><button value="cancel" class="df-btn df-btn-subtle">Cancelar</button><button id="df-modal-confirm" value="confirm" class="df-btn df-btn-primary">Confirmar</button></div></form></dialog>
 </div>
-<script src="{{ static('dockerflow/js/studio.js') }}"></script>
+<script>
+(function () {
+  // O shell Vela injeta HTML dinamicamente; carregar scripts em ordem definida.
+  window.VelaPage = { beforeUnmount: function () {
+    if (window.DockerFlow && window.DockerFlow.dispose) window.DockerFlow.dispose();
+  }};
+  function load(src) { return new Promise(function(resolve, reject) {
+    var s = document.createElement('script'); s.src = src; s.onload = resolve;
+    s.onerror = reject; document.body.appendChild(s);
+  }); }
+  load("{{ static('dockerflow/js/graph.js') }}")
+    .then(function(){ return load("{{ static('dockerflow/js/studio.js') }}"); })
+    .then(function(){ window.DockerFlow.mount(); })
+    .catch(function(e){ console.error('[DockerFlow] Falha nos scripts locais',e); });
+})();
+</script>
