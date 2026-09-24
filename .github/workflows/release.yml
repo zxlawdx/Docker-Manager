@@ -71,7 +71,6 @@ jobs:
           .venv-build/bin/python -m unittest discover -s tests -p "test_docker_integration.py" -v
 
   linux:
-    if: github.event_name != 'pull_request'
     needs: [tests, integration]
     runs-on: ubuntu-24.04
     steps:
@@ -114,7 +113,6 @@ jobs:
           if-no-files-found: error
 
   windows:
-    if: github.event_name != 'pull_request'
     needs: [tests, integration]
     runs-on: windows-latest
     steps:
