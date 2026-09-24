@@ -8,7 +8,7 @@ from .services.task_service import task_service as tasks
 from .services.docker_service import docker_service as d
 from .services.terminal_service import terminal_service as terminal
 from .services import compose_service as compose
-from .services.graph_service import to_compose, from_compose, report
+from .services.graph_service import to_compose, from_compose, report, plan
 from .services import monitor_service
 from .services import graph_project_service as graph_projects_service
 from .services import diagnostic_service
@@ -191,6 +191,11 @@ def monitor_sample(context):
 @api.get("/monitor/events")
 def monitor_events():
     return safe(monitor_service.events)
+
+@api.post("/graph/plan")
+def graph_plan(context):
+    return safe(lambda: plan(body(context), d))
+
 
 # A API compartilhada do Vela registra handlers globais. Encapsular SOMENTE
 # nossas rotas e declarar explicitamente context para receber headers do Bottle.

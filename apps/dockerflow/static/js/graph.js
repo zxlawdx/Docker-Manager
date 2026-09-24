@@ -42,7 +42,8 @@
       history.push(JSON.stringify({nodes:state.nodes,edges:state.edges,removed:state.removed,pan:state.pan,zoom:state.zoom}));
       restore(future.pop());
     }
-    function getDocument(){return {version:2,nodes:state.nodes,edges:state.edges,source_compose:sourceCompose};}
+    function getDocument(){return {version:2,nodes:state.nodes,edges:state.edges,
+      removed:state.removed,source_compose:sourceCompose};}
     function loadGraph(document){
       checkpoint();
       // IDs presentes em JSON/Compose são rascunhos, nunca autorização para agir em recursos existentes.
@@ -433,6 +434,17 @@
       // Validar redes antes de qualquer alteração real.
       for(const network of planned.filter(n=>n.kind==="network")){
         if(network.gateway && !network.subnet)return deps.toast("Informe a sub-rede antes do gateway",true);
+      }
+      let operationPlan;
+      try {
+        operationPlan=await deps.api("/graph/plan","POST",getDocument());
+        if(!operationPlan.valid) {
+          deps.showOutput("Pré-voo: conflitos",JSON.stringify(operationPlan,null,2));
+          return;
+        }
+      } catch(error) {
+        deps.toast("Não foi possível validar a topologia: "+error.message,true);
+        return;
       }
       const count=state.edges.filter(e=>!e.persisted).length;
       const accepted=await deps.ask({

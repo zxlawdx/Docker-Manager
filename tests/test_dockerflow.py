@@ -171,3 +171,28 @@ class MonitoringAndReportTests(unittest.TestCase):
         graph = from_compose(source)
         result = yaml.safe_load(to_compose(graph))
         self.assertEqual(result["services"]["api"]["healthcheck"]["test"], ["CMD", "true"])
+
+class GraphPlanTests(unittest.TestCase):
+    def test_reject_stale_identity(self):
+        from apps.dockerflow.services.graph_service import plan
+        daemon=MagicMock()
+        daemon.containers.return_value=[{"id":"real-id","name":"web","ports":{}}]
+        daemon.networks.return_value=[]
+        graph={"version":2,"nodes":[{"id":"node","name":"web","kind":"container",
+               "existing":True,"dockerId":"stale-id","x":10,"y":10}],"edges":[]}
+        result=plan(graph,daemon)
+        self.assertFalse(result["valid"])
+        self.assertIn("recriado",result["conflicts"][0])
+
+    def test_preflight_detects_occupied_port(self):
+        from apps.dockerflow.services.graph_service import plan
+        daemon=MagicMock()
+        daemon.containers.return_value=[{"id":"live","name":"another",
+                     "ports":{"80/tcp":[{"HostPort":"8080","HostIp":"0.0.0.0"}]}}]
+        daemon.networks.return_value=[]
+        graph={"version":2,"nodes":[{"id":"new","name":"web","kind":"container",
+               "image":"nginx:alpine","host_port":"8080","x":10,"y":10}],
+               "edges":[]}
+        result=plan(graph,daemon)
+        self.assertFalse(result["valid"])
+        self.assertIn("ocupada",result["conflicts"][0])

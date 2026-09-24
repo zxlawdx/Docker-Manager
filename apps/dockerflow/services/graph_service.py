@@ -187,3 +187,55 @@ def report(graph):
                    "- Revise portas, segredos, volumes, políticas de restart e limites de recursos na IDE.",
                    "- Esta representação não aplica mudanças ao Docker automaticamente."])
     return "\n".join(output) + "\n"
+
+
+def plan(graph, docker_service):
+    """Plano consultivo pré-aplicação: leitura apenas, não muda o daemon."""
+    from .graph_project_service import validate
+    validate(graph)
+    containers = {item["name"]: item for item in docker_service.containers()}
+    networks = {item["name"]: item for item in docker_service.networks()}
+    occupied = set()
+    for current in containers.values():
+        for bindings in (current.get("ports") or {}).values():
+            for binding in bindings or []:
+                if binding.get("HostPort"):
+                    occupied.add(str(binding["HostPort"]))
+    by_id = {item["id"]: item for item in graph["nodes"]}
+    problems, operations, notices = [], [], []
+    for item in graph["nodes"]:
+        name = item["name"]
+        kind = item["kind"]
+        current = (containers if kind == "container" else networks).get(name)
+        if item.get("existing"):
+            if not current or current["id"] != item.get("dockerId"):
+                problems.append(kind + " existente ausente ou recriado: " + name)
+        else:
+            if current:
+                problems.append("Nome já utilizado no Docker: " + name)
+            if kind == "network" and item.get("driver", "bridge") != "bridge":
+                problems.append("A criação visual atualmente aceita apenas bridge: " + name)
+            if kind == "container" and str(item.get("host_port") or "") in occupied:
+                problems.append("Porta do host ocupada: " + str(item["host_port"]))
+            operations.append({"action": "create_" + kind, "name": name})
+    for edge in graph["edges"]:
+        source, target = by_id[edge["source"]], by_id[edge["target"]]
+        if {source["kind"], target["kind"]} != {"network", "container"}:
+            problems.append("Conexão inválida: use rede e container")
+            continue
+        network = source if source["kind"] == "network" else target
+        container = target if source["kind"] == "network" else source
+        if network["name"] in ("host", "none") and not edge.get("persisted"):
+            problems.append("Rede host/none não pode receber este tipo de ligação")
+        if not edge.get("persisted"):
+            operations.append({"action": "connect", "container": container["name"],
+                               "network": network["name"]})
+    for removed in graph.get("removed") or []:
+        source, target = by_id.get(removed.get("source")), by_id.get(removed.get("target"))
+        if source and target:
+            operations.append({"action": "disconnect", "source": source["name"],
+                               "target": target["name"]})
+    if operations:
+        notices.append("Esta operação não é atômica. Outros processos podem alterar o daemon após o pré-voo.")
+    return {"valid": not problems, "conflicts": problems,
+            "operations": operations, "warnings": notices}
