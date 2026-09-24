@@ -150,3 +150,15 @@ ser convertida em promessa de estabilidade.
 - [ ] Validação manual de acessibilidade, layouts WebView nativos Linux/Windows, restauração de sistema e testes de falha sob carga.
 
 **Continua fora do escopo deste incremento:** rollback transacional, empregos persistentes/stream real, xterm.js/WS, parser YAML preservando comentários, armazenamento de segredos com keyring, edição multi-host, scanners CVE/SBOM, backup consistente e Kubernetes. Não usar marcações de conclusão para esses itens.
+
+### Solicitações adicionais: arraste, redes como áreas, templates e administração
+
+- [x] Corrigir arraste na WebView: eventos pointer capturados no stage estável.
+- [x] Alternância entre grafo de linhas e zonas retangulares representando redes.
+- [x] Arrastar container para uma zona cria uma aresta pendente; conexão real somente após pré-voo e confirmação.
+- [x] Botão para importar todas as associações atualmente observadas no Docker Engine; múltiplas redes exibidas como etiquetas.
+- [x] Biblioteca offline com 17 opções de serviços e stacks YAML; integração com a IDE e o canvas.
+- [x] Admin Linux: prévia com identidade exata dos containers, frase destrutiva, revalidação e autorização polkit para remoção forçada via Docker CLI com socket explícito.
+- [x] Testes unitários sobre catálogo, fluxo de admin, captura estática dos eventos e bindings da interface.
+- [ ] Teste manual de arraste/soltar em WebView Linux e Windows com mouse/touchpad; ampliar cobertura automatizada E2E.
+- [ ] Volumes de produção: backups consistentes por serviço, scanner de segurança, acesso multiusuário e migração entre daemons continuam pendentes.

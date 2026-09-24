@@ -81,3 +81,20 @@ Consulte [auditoria técnica, limitações, comparativo do projeto original e ro
 ## Desenvolvimento e escopo
 
 Consulte o [roteiro completo de funcionalidades, pendências e limites](docs/ROADMAP_ALL.md). A migração Vela foi integrada na PR #2. A PR #3 amplia o editor e a infraestrutura; não considere os recursos experimentais liberados para produção antes de validar a aplicação nativa e os workflows.
+
+## PR #3 · correções de arraste, visualização por redes e biblioteca YAML
+
+O editor agora captura os movimentos no **stage** estável, em vez de no próprio cartão (que pode perder eventos do Qt WebView). Há duas formas de trabalhar no mesmo rascunho:
+
+- **Grafo (linhas):** arraste os cartões; faça ligações pelos conectores.
+- **Redes (áreas):** alterne para `Áreas (arrastar)` e solte um container dentro do quadrado da rede. Isso cria uma associação **pendente**, inclusive para containers já existentes; somente `Aplicar alterações` executa a ligação no Docker.
+
+**Trazer todas as relações** consulta novamente containers e redes do daemon e reconstrói as associações observadas. A importação preserva identidades somente durante essa sessão; projetos salvos/JSON carregam sempre como rascunho. O botão pergunta antes de descartar alterações locais. Containers associados a várias redes ocupam visualmente a primeira e mostram etiquetas para as demais. Remover a associação deve ser explícito pelo inspetor do grafo, não basta arrastar o container para fora do quadrado.
+
+A biblioteca offline possui modelos individuais e stacks YAML editáveis (PostgreSQL, MySQL, MariaDB, MongoDB, Redis, RabbitMQ, Grafana, Prometheus, Nginx, Caddy, WordPress, Ollama, Registry, Python/Node e stacks prontas). Na Compose IDE, selecione o template, confirme a substituição do editor e revise o YAML. **Templates não executam o Docker automaticamente.** Modelos com banco de dados exigem variáveis de ambiente reais: placeholders `\u0024{VAR:?Defina...}` nunca podem ser aplicados como senha literal pelo canvas.
+
+### Admin: remoção total opcional no Linux
+
+A tela **Administração** possui verificação prévia e um botão separado para remoção de todos os containers **locais**. Este recurso é intencionalmente restrito a Linux com socket `/var/run/docker.sock` e agente gráfico polkit/pkexec instalado. Use o aplicativo como usuário normal autorizado a consultar o Docker. A sequência é: verificar a lista, digitar exatamente `APAGAR TODOS`, confirmar a janela gráfica do **sistema operacional** (fora da WebView) e conferir novamente os containers. Nenhuma senha é recebida no HTML, nenhuma elevação silenciosa ocorre e não há fallback automático se a autorização falhar. A operação força a remoção de containers, mas **não apaga volumes nomeados**. Dados apenas na camada gravável dos containers podem se perder.
+
+Esta ferramenta não constitui controle de acesso multiusuário. Qualquer conta que já tenha permissão de escrever no socket Docker dispõe potencialmente de privilégios equivalentes aos de root; não exponha a aplicação na rede. Confira o daemon e faça backup antes de operações destrutivas.
