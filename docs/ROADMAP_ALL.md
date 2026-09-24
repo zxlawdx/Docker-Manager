@@ -39,7 +39,7 @@
 
 ## Canvas: itens 13–27 e novos blocos
 
-- [ ] Conexões por *arraste*, seleção múltipla, copiar/colar e duplicação.
+- [x] Conexões por arraste no canvas; [ ] seleção múltipla, copiar/colar e duplicação.
 - [x] Undo/redo de edições iniciais e minimapa básico.
 - [ ] Snap-to-grid, alinhamento, agrupamento, layout automático, camadas e pesquisa visual.
 - [x] Export SVG, [ ] PNG e PDF.
@@ -48,7 +48,7 @@
 - [ ] Tipos próprios: imagem, volume, porta, host, Compose, registry, secret, config,
       healthcheck, proxy, load balancer, banco de dados e serviço externo.
 - [ ] Ligações tipadas, não misturar conexão de rede com dependência ou montagem.
-- [ ] Planejamento completo, pré-validação da infraestrutura e rollback de ações selecionadas.
+- [x] Pré-visualização inicial read-only da aplicação (IDs, nomes, portas, ligações); [ ] planejamento completo de impactos, execução transacional e rollback de ações selecionadas.
 
 ## Network Lab: itens 28–41
 
@@ -61,7 +61,7 @@
 
 ## Containers: itens 42–58
 
-- [x] Criação, imagem, portas básicas, CPU/memória, restart e opções simples de segurança.
+- [x] Criação, imagem, portas TCP/UDP, mounts básicos, CPU/memória, restart e opções simples de segurança no backend, formulário e canvas.
 - [ ] Formulário completo: healthchecks, env segura, mounts avançados, GPU/dispositivos,
       usuários, capabilities, logs, ulimits e recursos em lote.
 - [ ] Processos internos, histórico de restart, comparação de configurações e perfis.
@@ -90,7 +90,7 @@
 
 - [x] Estatísticas de CPU/memória/tráfego sob demanda e eventos recentes.
 - [ ] Gráficos persistentes, I/O, uptime, healthchecks, alertas, Prometheus e incidentes.
-- [ ] Central de logs com streams múltiplos, filtros, regex, pesquisa, timeline,
+- [x] Central inicial de snapshots de logs sob demanda com filtro textual e exportação; [ ] streams múltiplos, regex, pesquisa durável, timeline,
       exportação, presets e comparação de logs por conexão visual.
 
 ## Volumes, imagens e segurança: itens 91–100 e complementos
