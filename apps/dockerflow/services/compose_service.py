@@ -34,7 +34,9 @@ def load(name):
     target = _project(name) / "compose.yml"
     if not target.is_file():
         raise ValueError("Projeto inexistente")
-    return {"name": name, "content": target.read_text(encoding="utf-8")}
+    dockerfile = target.parent / "Dockerfile"
+    return {"name": name, "content": target.read_text(encoding="utf-8"),
+            "dockerfile": dockerfile.read_text(encoding="utf-8") if dockerfile.is_file() else ""}
 
 def projects():
     return sorted([p.name for p in BASE.iterdir()
@@ -61,3 +63,16 @@ def execute(name, action, content=None):
         raise ValueError("A ação excedeu 180 segundos; confira estado Docker") from exc
     return {"ok": result.returncode == 0, "code": result.returncode,
             "output": (result.stdout + "\n" + result.stderr)[-40000:]}
+
+def save_dockerfile(name, content):
+    """Editor Dockerfile é persistido no mesmo workspace; build exige ação explícita."""
+    if not isinstance(content, str) or not 0 < len(content) <= 65536:
+        raise ValueError("Dockerfile vazio ou acima do limite de 64 KiB")
+    folder = _project(name)
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / "Dockerfile"
+    target.write_text(content, encoding="utf-8")
+    ignore = folder / ".dockerignore"
+    if not ignore.exists():
+        ignore.write_text(".git\\n.env\\n*.env\\ncompose.yml\\ncompose.yaml\\n", encoding="utf-8")
+    return {"ok": True, "folder": str(folder)}
