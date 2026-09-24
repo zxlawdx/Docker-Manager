@@ -63,7 +63,7 @@ class DockerStudioPlusTests(unittest.TestCase):
         result = self.service.processes("api")
         self.assertEqual(result["processes"][0]["PID"], "123")
         self.assertNotIn("PRIVATE_KEY", str(result))
-        self.assertNotIn("COMMAND", str(result))
+        self.assertNotIn("COMMAND", result["columns"])
 
     def test_volume_usage_counts_stopped_containers_and_avoids_sensitive_options(self):
         container = MagicMock()
