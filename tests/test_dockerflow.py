@@ -131,7 +131,7 @@ class SecurityAndProjectTests(unittest.TestCase):
 
     def test_from_compose_creates_drawable_network_edges(self):
         from apps.dockerflow.services.graph_service import from_compose
-        graph = from_compose("services:\\n  api:\\n    image: nginx:alpine\\n    networks: [internal]\\nnetworks:\\n  internal: {}\\n")
+        graph = from_compose("services:\n  api:\n    image: nginx:alpine\n    networks: [internal]\nnetworks:\n  internal: {}\n")
         self.assertEqual(len(graph["edges"]), 1)
         self.assertFalse(graph["nodes"][0]["existing"])
 
@@ -167,7 +167,7 @@ class MonitoringAndReportTests(unittest.TestCase):
     def test_compose_preserves_unedited_advanced_fields(self):
         import yaml
         from apps.dockerflow.services.graph_service import from_compose
-        source = "services:\\n  api:\\n    image: nginx:alpine\\n    healthcheck:\\n      test: ['CMD', 'true']\\n"
+        source = "services:\n  api:\n    image: nginx:alpine\n    healthcheck:\n      test: ['CMD', 'true']\n"
         graph = from_compose(source)
         result = yaml.safe_load(to_compose(graph))
         self.assertEqual(result["services"]["api"]["healthcheck"]["test"], ["CMD", "true"])

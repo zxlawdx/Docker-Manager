@@ -114,7 +114,7 @@
       for(const [name,opts] of Object.entries(t.networks)){
         lines.push("  "+name+":",...(opts.internal?["    internal: true"]:["    driver: bridge"]));
       }
-      return lines.join("\\n")+"\\n";
+      return lines.join("\n")+"\n";
     }
     function exportSvg(){
       const elements=state.edges.map(e=>{

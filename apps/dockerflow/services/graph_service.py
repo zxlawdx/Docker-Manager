@@ -186,4 +186,4 @@ def report(graph):
     output.extend(["", "## Observações", "",
                    "- Revise portas, segredos, volumes, políticas de restart e limites de recursos na IDE.",
                    "- Esta representação não aplica mudanças ao Docker automaticamente."])
-    return "\\n".join(output) + "\\n"
+    return "\n".join(output) + "\n"
