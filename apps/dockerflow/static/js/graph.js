@@ -164,6 +164,31 @@
       }
       state.selected=null;render();
     }
+
+    async function loadExample() {
+      if(draftCount() && !(await deps.ask({
+        title:"Abrir o exemplo de rede?",
+        description:"Isso substituirá os blocos desenhados que ainda não foram aplicados. Exporte JSON para guardar seu rascunho.",
+        fields:[]
+      })))return;
+      const uidNet=uid(),uidWeb=uid(),uidDb=uid();
+      state.nodes=[
+        {id:uidWeb,kind:"container",name:"minha-api",image:"nginx:alpine",
+          existing:false,driver:"bridge",x:88,y:170},
+        {id:uidNet,kind:"network",name:"lab-backend",driver:"bridge",
+          existing:false,x:345,y:172,internal:false},
+        {id:uidDb,kind:"container",name:"banco-de-dados",image:"postgres:16",
+          existing:false,driver:"bridge",x:610,y:170}
+      ];
+      state.edges=[
+        {id:uid(),source:uidNet,target:uidWeb,persisted:false},
+        {id:uid(),source:uidNet,target:uidDb,persisted:false}
+      ];
+      state.removed=[];state.selected=null;state.linking=null;
+      state.zoom=.85;state.pan={x:25,y:35};persistPositions();render();
+      deps.toast("Exemplo editável carregado. O Docker ainda não foi alterado.");
+    }
+
     async function importDocker(force=false) {
       if (!force && draftCount() && !(await deps.ask({title:"Substituir o rascunho?",
           description:"A importação descartará alterações NÃO aplicadas. Exporte JSON antes, se necessário.",fields:[]}))) return;
@@ -397,6 +422,7 @@
     $("df-zoom-in").onclick=()=>{state.zoom=Math.min(1.8,state.zoom+.1);transform();};
     $("df-zoom-out").onclick=()=>{state.zoom=Math.max(.4,state.zoom-.1);transform();};
     $("df-zoom-reset").onclick=()=>{state.zoom=1;state.pan={x:65,y:46};transform();};
+    $("df-graph-demo").onclick=loadExample;
     $("df-graph-load").onclick=()=>importDocker();
     $("df-graph-apply").onclick=apply;
     $("df-graph-save").onclick=exportJson;
