@@ -10,7 +10,7 @@ Auditoria realizada sobre o repositório original em `main` (commit `e9113dba6e3
 | Imagens | Listagem e dados aproximados de tamanho | Em `server.py`, `created_raw = created = ""` faz a data aparecer sempre vazia. Falta pull/delete/build por RPC. |
 | IDE Docker | `create_container_page.py` já traz **Compose Builder + editor YAML + editor Dockerfile**; templates de imagens e snippets; execução por subprocesso | Deve ser preservada. Sua implementação estava ligada diretamente à UI PyQt e fragmentada em métodos da tela. |
 | Terminal | `terminal_page.py` permite escolher container, shell e usuário | Abre terminal **externo do sistema**, via `QProcess`, em vez de uma sessão embutida na janela. |
-| Arquitetura | Duas aplicações: desktop PyQt6 e servidor gRPC localhost:50051 | O Vela já tem servidor HTTP embutido e não precisa de um segundo backend para uso local. O antigo gRPC permanece no histórico, mas não é iniciado pela nova entrada Vela. |
+| Arquitetura | Duas aplicações: desktop PyQt6 e servidor gRPC localhost:50051 | O Vela já tem servidor HTTP embutido e não precisa de um segundo backend para uso local. O antigo gRPC permanece no histórico, mas não é iniciado pela nova entrada Vela. **Risco identificado:** o servidor legado registra `add_insecure_port("[::]:50051")` apesar de exibir `localhost`, potencialmente expondo controle Docker a todas as interfaces sem TLS/autenticação se o firewall permitir. |
 | Redes, volumes e visualização | Não existiam páginas ou contratos `.proto` para gerenciá-los | Não havia montagem de topologias, ligações de redes ou importação visual do estado Docker. |
 | Distribuição | Python sem workflow de release no repositório | Não havia build nativo por tag, artefatos assinados por checksum nem release automatizada. |
 
@@ -25,7 +25,7 @@ Auditoria realizada sobre o repositório original em `main` (commit `e9113dba6e3
 | Recursos Docker | Containers: list/create/start/stop/restart/pause/unpause/remove, inspect sem env, logs e stats; imagens: list/pull/build/remove; redes bridge: list/create/connect/disconnect/remove; volumes: list/create/remove | Não implementa `commit`, `tag`, prune seletivo, snapshots ou browsing de volumes. |
 | IDE | Mantém editor Compose, validação e `up -d`/`down`; projetos salvos na pasta de dados do usuário; editor Dockerfile independente, templates Python/Node/Nginx/Go/Postgres, save/build | Editor é um textarea responsivo, não Monaco; YAML/Dockerfile ainda sem autocomplete, lint contextual avançado ou diff. O build de Dockerfile usa o contexto persistido do workspace; `COPY` de arquivos não salvos ali falhará. Para projeto completo, use build por diretório na tela de imagens. |
 | Terminal | PTY Docker real **integrado**, com envio de comandos, retorno na própria UI, Ctrl-C, shells sh/bash/ash; sessões não dependem do terminal do SO | Renderizador de **linhas de texto**, não emulador xterm completo: `vim`, `top` e aplicações full-screen podem exibir incorretamente. Sem resize TTY/cópia de arquivos. |
-| Build | Workflow inspirado em `acess_manager`: testes em PR; ao enviar tags `v*`, builds Qt6 Linux/Windows em ambientes Python isolados, testes `--self-test`, ZIP + SHA256 e GitHub Release | O CI valida importações/smoke do bundle; testar acesso ao Docker real depende de um ambiente com Docker Desktop/Engine. Não publique a tag de release até passar a verificação. |
+| Build | Workflow inspirado em `acess_manager`: testes em PR; ao enviar tags `v*`, builds Qt6 Linux/Windows em ambientes Python isolados, testes `--self-test`, ZIP + SHA256 e GitHub Release | O CI executa testes unitários e um teste integrado em Docker Engine descartável (criar rede bridge, conectar dois containers, verificar e desconectar). **Builds de Linux e Windows também são verificados em PR**; a publicação do GitHub Release continua exclusiva de tags. Os testes não substituem a validação interativa com Docker Desktop/Engine em máquinas reais. |
 
 ### Por que a arquitetura mudou
 
@@ -79,9 +79,9 @@ Windows: crie o venv normalmente e use `python manage.py runapp`; execute `dist\
 
 ## 5. Tags e GitHub Actions
 
-O workflow `.github/workflows/release.yml` roda testes para pull requests em `main` e publica release **apenas** em `push` de tags `v*` ou disparo manual para uma tag já existente. Ele não faz o upload do código para a branch principal nem publica automaticamente a branch feature.
+O workflow `.github/workflows/release.yml` roda testes e builds nativos para pull requests em `main`, mas publica release **apenas** em `push` de tags `v*` ou disparo manual para uma tag já existente. Ele não faz o upload do código para a branch principal nem publica automaticamente a branch feature.
 
-Depois de revisar o PR, integrá-lo à `main` e confirmar CI, o primeiro release pode ser gerado com:
+Depois de revisar o PR, integrá-lo à `main` e confirmar todos os jobs de CI, o primeiro release pode ser gerado com:
 
 ~~~bash
 git checkout main
