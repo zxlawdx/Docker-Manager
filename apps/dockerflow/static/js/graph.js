@@ -177,7 +177,7 @@
           existing:false,driver:"bridge",x:88,y:170},
         {id:uidNet,kind:"network",name:"lab-backend",driver:"bridge",
           existing:false,x:345,y:172,internal:false},
-        {id:uidDb,kind:"container",name:"banco-de-dados",image:"postgres:16",
+        {id:uidDb,kind:"container",name:"redis-cache",image:"redis:7-alpine",
           existing:false,driver:"bridge",x:610,y:170}
       ];
       state.edges=[
