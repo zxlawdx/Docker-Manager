@@ -8,7 +8,7 @@
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
     terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
   const titles={overview:"Visão geral",graph:"Laboratório visual",
-    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",ide:"Compose IDE",terminal:"Terminal Docker"};
+    containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",ide:"Compose IDE",terminal:"Terminal Docker"};
 
   async function api(path,method="GET",payload=null){
     const opts={method,headers:{"Accept":"application/json",
@@ -87,6 +87,7 @@
     if(page==="volumes")loadVolumes();
     if(page==="networks")loadNetworks();
     if(page==="tasks")loadTasks();
+    if(page==="monitor")loadMonitor();
     if(page==="terminal")refreshTerminalList();
     if(page==="ide")listProjects();
   }
@@ -207,6 +208,28 @@
     catch(err){toast(err.message,true);}
   }
 
+
+  async function loadMonitor(){
+    const display=$("df-monitor-list"),events=$("df-monitor-events");
+    display.textContent="Coletando dados do Docker...";
+    try{
+      const data=await api("/monitor/sample","POST",{limit:8});
+      display.innerHTML='<table class="df-table"><thead><tr><th>Container</th><th>CPU</th><th>Memória</th><th>Rede RX / TX</th></tr></thead><tbody>'+
+        data.samples.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+
+          (c.error?esc(c.error):esc(c.current.cpu_percent)+"%")+'</td><td>'+
+          (c.error?"—":(c.current.memory_bytes/1048576).toFixed(1)+" MiB / "+
+           (c.current.memory_limit/1048576).toFixed(0)+" MiB")+'</td><td>'+
+          (c.error?"—":(c.current.network_rx/1048576).toFixed(2)+" / "+
+           (c.current.network_tx/1048576).toFixed(2)+" MiB")+'</td></tr>').join("")+
+        '</tbody></table>'+(data.samples.length?"":'<div class="df-empty">Nenhum container em execução.</div>');
+    }catch(err){display.textContent=err.message;}
+    try{
+      const list=await api("/monitor/events");
+      events.innerHTML='<table class="df-table"><thead><tr><th>Horário (Unix)</th><th>Tipo</th><th>Ação</th><th>Recurso</th></tr></thead><tbody>'+
+        list.reverse().map(e=>'<tr><td>'+esc(e.time)+'</td><td>'+esc(e.type)+'</td><td>'+
+          esc(e.action)+'</td><td>'+esc(e.actor)+'</td></tr>').join("")+'</tbody></table>';
+    }catch(err){events.textContent=err.message;}
+  }
   async function loadTasks(){
     try{
       const jobs=await api("/tasks");
@@ -422,6 +445,11 @@
     $("df-volume-new").onclick=newVolume;
     $("df-network-create").onclick=createNetwork;
     $("df-task-refresh").onclick=loadTasks;
+    $("df-monitor-refresh").onclick=loadMonitor;
+    $("df-monitor-storage").onclick=async()=>{
+      try{const result=await api("/diagnostics/storage");showOutput("Docker: uso de disco",JSON.stringify(result,null,2));}
+      catch(err){toast(err.message,true);}
+    };
     $("df-network-list").addEventListener("click",e=>{
       const button=e.target.closest("[data-action]");
       if(button)networkAction(button.dataset.action,button.dataset.id);

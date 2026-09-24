@@ -20,18 +20,51 @@ def to_compose(graph):
                 raise ValueError("Nomes de rede duplicados")
             names[n["id"]] = key
             # Rede desenhada marcada como existente: Compose não deve recriá-la.
-            networks[key] = ({"external": True, "name": n["name"]}
-                             if n.get("existing") else {"driver": "bridge"})
+            spec = ({"external": True, "name": n["name"]}
+                    if n.get("existing") else {"driver": "bridge"})
+            if not n.get("existing") and n.get("subnet"):
+                import ipaddress
+                subnet = ipaddress.ip_network(n["subnet"], strict=True)
+                config = {"subnet": str(subnet)}
+                if n.get("gateway"):
+                    gateway = ipaddress.ip_address(n["gateway"])
+                    if gateway not in subnet:
+                        raise ValueError("Gateway fora da sub-rede de " + key)
+                    config["gateway"] = str(gateway)
+                spec["ipam"] = {"config": [config]}
+            if n.get("internal") and not n.get("existing"):
+                spec["internal"] = True
+            networks[key] = spec
     for n in nodes.values():
         if n.get("kind") != "container":
             continue
         key = slug(n.get("name") or n["id"], "service")
         image = n.get("image")
-        if not image:
+        source = yaml.safe_load(graph.get("source_compose") or "{}") or {}
+        original = (source.get("services") or {}).get(n.get("name")) or {}
+        if not image and not original.get("build"):
             raise ValueError("Informe a imagem do contêiner " + key)
         if key in services:
             raise ValueError("Nomes de serviço duplicados")
-        service = {"image": image}
+        service = dict(original)
+        if image:
+            service["image"] = image
+        if n.get("cpus") not in (None, ""):
+            cpus = float(n["cpus"])
+            if not 0.01 <= cpus <= 128:
+                raise ValueError("CPU fora do intervalo em " + key)
+            service["cpus"] = cpus
+        if n.get("memory_mb") not in (None, ""):
+            m = int(n["memory_mb"])
+            if not 32 <= m <= 1048576:
+                raise ValueError("Memória inválida no serviço " + key)
+            service["mem_limit"] = str(m) + "m"
+        if n.get("restart"):
+            if n["restart"] not in ("no", "always", "unless-stopped", "on-failure"):
+                raise ValueError("Política de restart desconhecida")
+            service["restart"] = n["restart"]
+        if n.get("read_only"):
+            service["read_only"] = True
         host, inside = str(n.get("host_port") or "").strip(), str(n.get("container_port") or "").strip()
         if host or inside:
             if not (host.isdigit() and inside.isdigit()
@@ -71,8 +104,14 @@ def to_compose(graph):
         svc.setdefault("networks", [])
         if names[n["id"]] not in svc["networks"]:
             svc["networks"].append(names[n["id"]])
-    return yaml.safe_dump({"services": services, "networks": networks},
-                          sort_keys=False, allow_unicode=True)
+    # Sem remover chaves Compose avançadas que o canvas ainda não representa.
+    source = yaml.safe_load(graph.get("source_compose") or "{}") or {}
+    if source and not isinstance(source, dict):
+        raise ValueError("Fonte Compose inválida")
+    doc = dict(source)
+    doc["services"] = services
+    doc["networks"] = networks
+    return yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
 
 
 def from_compose(content):
@@ -123,3 +162,28 @@ def from_compose(content):
                           "source": networks[network], "target": ident,
                           "persisted": False})
     return {"version": 2, "nodes": nodes, "edges": edges, "source_compose": content}
+
+
+def report(graph):
+    """Documentação sem serializar variáveis de ambiente e credenciais."""
+    nodes = {item["id"]: item for item in graph.get("nodes", [])}
+    if len(nodes) > 150 or len(graph.get("edges", [])) > 350:
+        raise ValueError("Diagrama grande demais")
+    output = ["# DockerFlow · relatório de arquitetura", "",
+              "Documentação descritiva gerada a partir do rascunho visual. Não prova conectividade real.",
+              "", "## Elementos", "",
+              "| Nome | Tipo | Imagem/driver |", "|---|---|---|"]
+    for item in nodes.values():
+        name = str(item.get("name", "")).replace("|", "\\|").replace(chr(10), " ")[:100]
+        detail = str(item.get("image") if item.get("kind") == "container" else item.get("driver") or "")[:150]
+        output.append("| " + name + " | " + str(item.get("kind")) +
+                      " | " + detail.replace("|", "\\|") + " |")
+    output.extend(["", "## Conexões desenhadas", ""])
+    for edge in graph.get("edges", []):
+        left, right = nodes.get(edge.get("source")), nodes.get(edge.get("target"))
+        if left and right:
+            output.append("- " + str(left.get("name", ""))[:80] + " ↔ " + str(right.get("name", ""))[:80])
+    output.extend(["", "## Observações", "",
+                   "- Revise portas, segredos, volumes, políticas de restart e limites de recursos na IDE.",
+                   "- Esta representação não aplica mudanças ao Docker automaticamente."])
+    return "\\n".join(output) + "\\n"

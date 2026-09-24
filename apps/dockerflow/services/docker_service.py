@@ -55,12 +55,33 @@ class DockerService:
         image = data.get("image", "").strip()
         if not image:
             raise ValueError("Imagem obrigatória")
+        restart = data.get("restart") or "unless-stopped"
+        if restart not in {"no", "always", "unless-stopped", "on-failure"}:
+            raise ValueError("Política de restart desconhecida")
+        extra = {}
+        if data.get("cpus") not in (None, ""):
+            cpus = float(data["cpus"])
+            if not 0.01 <= cpus <= 128:
+                raise ValueError("Limite de CPU fora do intervalo")
+            extra["nano_cpus"] = int(cpus * 1_000_000_000)
+        if data.get("memory_mb") not in (None, ""):
+            memory_mb = int(data["memory_mb"])
+            if not 32 <= memory_mb <= 1048576:
+                raise ValueError("Memória: entre 32 MiB e 1 TiB")
+            extra["mem_limit"] = memory_mb * 1024 * 1024
+        if data.get("read_only"):
+            extra["read_only"] = True
+        if data.get("no_new_privileges"):
+            extra["security_opt"] = ["no-new-privileges:true"]
         ports = {}
         for p in data.get("ports", []):
             a, b = int(p["host"]), int(p["container"])
             if not (1 <= a <= 65535 and 1 <= b <= 65535):
                 raise ValueError("Porta inválida")
-            ports[str(b) + "/tcp"] = a
+            protocol = p.get("protocol") or "tcp"
+            if protocol not in ("tcp", "udp"):
+                raise ValueError("Protocolo inválido")
+            ports[str(b) + "/" + protocol] = a
         volumes = {}
         for v in data.get("volumes", []):
             if v.get("source") and v.get("target", "").startswith("/"):
@@ -69,7 +90,7 @@ class DockerService:
             image, name=data.get("name") or None, detach=True, ports=ports,
             environment=data.get("environment") or {}, volumes=volumes,
             network=data.get("network") or None,
-            restart_policy={"Name": data.get("restart") or "unless-stopped"})
+            restart_policy={"Name": restart}, **extra)
         return {"ok": True, "id": c.id}
 
     def inspect(self, identifier):

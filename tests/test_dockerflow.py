@@ -142,3 +142,32 @@ class SecurityAndProjectTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "fora da sub-rede"):
             svc.network_action("create", {"name": "lab", "subnet": "172.29.0.0/24",
                                            "gateway": "172.30.0.1"})
+
+class MonitoringAndReportTests(unittest.TestCase):
+    def test_cpu_and_memory_sample(self):
+        from apps.dockerflow.services.monitor_service import _snapshot
+        stats = {"cpu_stats": {"cpu_usage": {"total_usage": 220}, "system_cpu_usage": 1200, "online_cpus": 2},
+                 "precpu_stats": {"cpu_usage": {"total_usage": 120}, "system_cpu_usage": 1000},
+                 "memory_stats": {"usage": 1200, "limit": 4000, "stats": {"cache": 200}},
+                 "networks": {"eth0": {"rx_bytes": 20, "tx_bytes": 30}}}
+        result = _snapshot(stats)
+        self.assertEqual(result["cpu_percent"], 100)
+        self.assertEqual(result["memory_bytes"], 1000)
+        self.assertEqual(result["network_tx"], 30)
+
+    def test_report_excludes_environment_secrets(self):
+        from apps.dockerflow.services.graph_service import report
+        doc = {"nodes": [{"id": "1", "name": "api", "kind": "container",
+                           "image": "python:3.12", "env_text": '{"SECRET":"private"}'}],
+               "edges": []}
+        output = report(doc)
+        self.assertIn("api", output)
+        self.assertNotIn("private", output)
+
+    def test_compose_preserves_unedited_advanced_fields(self):
+        import yaml
+        from apps.dockerflow.services.graph_service import from_compose
+        source = "services:\\n  api:\\n    image: nginx:alpine\\n    healthcheck:\\n      test: ['CMD', 'true']\\n"
+        graph = from_compose(source)
+        result = yaml.safe_load(to_compose(graph))
+        self.assertEqual(result["services"]["api"]["healthcheck"]["test"], ["CMD", "true"])

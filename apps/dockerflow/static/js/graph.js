@@ -70,6 +70,52 @@
         deps.showOutput("Diferenças: desenho × Docker",JSON.stringify(result,null,2));
       }catch(e){deps.toast(e.message,true);}
     }
+    async function exportReport(){
+      try{
+        const result=await deps.api("/graph/report","POST",getDocument());
+        deps.download("dockerflow-arquitetura.md",result.content,"text/markdown;charset=utf-8");
+      }catch(e){deps.toast(e.message,true);}
+    }
+    async function useTemplate(name){
+      const templates={
+        "web-db": {services:{
+          gateway:{image:"nginx:alpine",ports:["8080:80"],networks:["public","private"]},
+          api:{image:"python:3.12-slim",networks:["private"]},
+          database:{image:"postgres:16",environment:{POSTGRES_PASSWORD:""},networks:["private"]},
+          cache:{image:"redis:7-alpine",networks:["private"]}
+        },networks:{public:{},private:{internal:true}}},
+        "reverse-proxy":{services:{
+          gateway:{image:"nginx:alpine",ports:["8080:80"],networks:["front"]},
+          api1:{image:"node:22-alpine",networks:["front","backend"]},
+          api2:{image:"python:3.12-slim",networks:["front","backend"]}
+        },networks:{front:{},backend:{internal:true}}},
+        "microservices":{services:{
+          gateway:{image:"nginx:alpine",networks:["edge"]},
+          users:{image:"node:22-alpine",networks:["edge","internal"]},
+          orders:{image:"python:3.12-slim",networks:["edge","internal"]},
+          redis:{image:"redis:7-alpine",networks:["internal"]}
+        },networks:{edge:{},internal:{internal:true}}}
+      };
+      if(!templates[name])return;
+      if(draftCount() && !(await deps.ask({title:"Substituir rascunho?",fields:[]})))return;
+      const result=await deps.api("/graph/from-compose","POST",{content:toYamlTemplate(templates[name])});
+      loadGraph(result);deps.toast("Topologia de exemplo carregada. Ajuste os serviços antes de aplicar.");
+    }
+    function toYamlTemplate(t){
+      // Os templates simples evitam adicionar dependências de YAML no frontend.
+      const lines=["services:"];
+      for(const [name,service] of Object.entries(t.services)){
+        lines.push("  "+name+":","    image: "+service.image);
+        if(service.ports)lines.push("    ports:",...service.ports.map(p=>'      - "'+p+'"'));
+        if(service.environment)lines.push("    environment:",...Object.entries(service.environment).map(([key,val])=>"      "+key+': "'+val+'"'));
+        if(service.networks)lines.push("    networks:",...service.networks.map(net=>"      - "+net));
+      }
+      lines.push("networks:");
+      for(const [name,opts] of Object.entries(t.networks)){
+        lines.push("  "+name+":",...(opts.internal?["    internal: true"]:["    driver: bridge"]));
+      }
+      return lines.join("\\n")+"\\n";
+    }
     function exportSvg(){
       const elements=state.edges.map(e=>{
         const a=node(e.source),b=node(e.target);if(!a||!b)return "";
@@ -191,6 +237,9 @@
         options+'</select></label>'+
         field("Porta do host (opcional)",n.host_port||"","host_port")+
         field("Porta do container",n.container_port||"","container_port")+
+        field("CPUs (opcional)",n.cpus||"","cpus")+
+        field("Memória MiB (opcional)",n.memory_mb||"","memory_mb")+
+        field("Restart: no/always/unless-stopped/on-failure",n.restart||"","restart")+
         '<label class="df-field">Variáveis de ambiente (JSON)'+
         '<textarea data-edit="env_text" rows="4" spellcheck="false" placeholder="{ }">'+
         esc(n.env_text||"{}")+'</textarea></label>';
@@ -213,7 +262,9 @@
       if(img.startsWith("mysql") && !environment.MYSQL_ROOT_PASSWORD &&
          !environment.MYSQL_ALLOW_EMPTY_PASSWORD && !environment.MYSQL_RANDOM_ROOT_PASSWORD)
         throw new Error("Configure MYSQL_ROOT_PASSWORD em "+n.name+".");
-      return {name:n.name,image:n.image,network:null,ports,volumes:[],environment};
+      return {name:n.name,image:n.image,network:null,ports,volumes:[],environment,
+              cpus:n.cpus||"",memory_mb:n.memory_mb||"",restart:n.restart||"",
+              read_only:!!n.read_only};
     }
 
     function renderInspector() {
@@ -242,7 +293,9 @@
         '</p><h3>'+esc(n.name)+'</h3>'+field("Nome",n.name,"name",n.existing)+
         (n.kind==="container"?field("Imagem",n.image||"","image",n.existing)+advancedContainer(n):
           '<label class="df-field">Driver<input value="bridge" disabled></label>'+
-          (!n.existing?'<label class="df-field"><span><input style="width:auto" type="checkbox" data-internal '+
+          (!n.existing?field("Sub-rede CIDR (opcional)",n.subnet||"","subnet")+
+          field("Gateway (opcional)",n.gateway||"","gateway")+
+          '<label class="df-field"><span><input style="width:auto" type="checkbox" data-internal '+
             (n.internal?'checked':'')+'> Somente interna</span></label>':""))+
         '<div class="df-inspect-value">'+(n.existing?"DOCKER ID "+esc(n.dockerId||""):"RASCUNHO • NÃO CRIADO")+
         '</div>'+(n.kind==="container" && n.existing?
@@ -370,6 +423,10 @@
       let payloads;
       try {payloads=new Map(planned.filter(n=>n.kind==="container").map(n=>[n.id,containerPayload(n)]));}
       catch(err){return deps.toast(err.message,true);}
+      // Validar redes antes de qualquer alteração real.
+      for(const network of planned.filter(n=>n.kind==="network")){
+        if(network.gateway && !network.subnet)return deps.toast("Informe a sub-rede antes do gateway",true);
+      }
       const count=state.edges.filter(e=>!e.persisted).length;
       const accepted=await deps.ask({
         title:"Aplicar alterações ao Docker?",
@@ -393,7 +450,7 @@
         }
         // 1. Redes antes dos containers: estes podem escolher a rede ao nascer.
         for(const n of planned.filter(x=>x.kind==="network")){
-          const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal});
+          const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal,subnet:n.subnet||"",gateway:n.gateway||""});
           n.dockerId=result.id;n.existing=true;
         }
         // 2. Containers devem existir antes dos vínculos de rede.
@@ -425,8 +482,7 @@
     }
     async function exportCompose() {
       try{
-        const result=await deps.api("/graph/compose","POST",
-          {nodes:state.nodes,edges:state.edges});
+        const result=await deps.api("/graph/compose","POST",getDocument());
         deps.setYaml(result.content);
         deps.navigate("ide");
         deps.toast("Compose gerado. Revise o YAML antes de executar.");
@@ -573,6 +629,8 @@
     $("df-diagram-open").onclick=openProject;
     $("df-diagram-diff").onclick=compareDocker;
     $("df-graph-svg").onclick=exportSvg;
+    $("df-graph-report").onclick=exportReport;
+    $("df-template-load").onclick=()=>useTemplate($("df-template").value);
     $("df-zoom-in").onclick=()=>{state.zoom=Math.min(1.8,state.zoom+.1);transform();};
     $("df-zoom-out").onclick=()=>{state.zoom=Math.max(.4,state.zoom-.1);transform();};
     $("df-zoom-reset").onclick=()=>{state.zoom=1;state.pan={x:65,y:46};transform();};

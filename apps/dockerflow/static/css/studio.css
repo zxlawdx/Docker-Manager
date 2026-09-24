@@ -272,3 +272,6 @@
 #dockerflow-root #df-undo,#dockerflow-root #df-redo {font-size:17px}
 #dockerflow-root [data-content="networks"] .df-table-wrap {overflow:auto}
 @media(max-width:920px){#dockerflow-root #df-minimap{width:115px;height:75px}}
+
+#dockerflow-root [data-content="monitor"] .df-card {margin-bottom:16px}
+#dockerflow-root #df-template-load {width:100%;margin:0 0 10px}
