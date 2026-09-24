@@ -1,5 +1,6 @@
 """Conversão do desenho em YAML Compose; nunca aplica nada ao Docker implicitamente."""
 import re
+import json
 import yaml
 
 def slug(value, prefix):
@@ -30,7 +31,29 @@ def to_compose(graph):
             raise ValueError("Informe a imagem do contêiner " + key)
         if key in services:
             raise ValueError("Nomes de serviço duplicados")
-        services[key] = {"image": image}
+        service = {"image": image}
+        host, inside = str(n.get("host_port") or "").strip(), str(n.get("container_port") or "").strip()
+        if host or inside:
+            if not (host.isdigit() and inside.isdigit()
+                    and 1 <= int(host) <= 65535 and 1 <= int(inside) <= 65535):
+                raise ValueError("Portas host/container inválidas no serviço " + key)
+            service["ports"] = [host + ":" + inside]
+
+        # Apenas variáveis declaradas no próprio diagrama.
+        # Importar Docker não extrai Config.Env para evitar vazamento de segredos.
+        raw_env = n.get("env_text") or "{}"
+        if not isinstance(raw_env, str):
+            raise ValueError("Variáveis em formato incorreto no serviço " + key)
+        try:
+            environment = json.loads(raw_env)
+        except ValueError as exc:
+            raise ValueError("JSON de ambiente inválido no serviço " + key) from exc
+        if not isinstance(environment, dict):
+            raise ValueError("O ambiente precisa ser objeto JSON em " + key)
+        if environment:
+            service["environment"] = {str(k): None if v is None else str(v)
+                                      for k, v in environment.items()}
+        services[key] = service
         names[n["id"]] = key
     if not services:
         raise ValueError("Desenhe ao menos um contêiner")
@@ -42,6 +65,8 @@ def to_compose(graph):
             continue
         c = a if a["kind"] == "container" else b
         n = b if a["kind"] == "container" else a
+        if n.get("name") in ("host", "none"):
+            raise ValueError("A rede padrão host/none exige network_mode e não pode ser exportada como rede bridge")
         svc = services[names[c["id"]]]
         svc.setdefault("networks", [])
         if names[n["id"]] not in svc["networks"]:
