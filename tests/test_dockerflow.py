@@ -80,6 +80,18 @@ class GraphTests(unittest.TestCase):
            "edges":[{"source":"rede","target":"api"}]}
         self.assertIn("external: true",to_compose(g))
 
+
+    def test_canvas_ports_and_environment_export_to_compose(self):
+        import yaml
+        graph = {"nodes": [
+            {"id": "api", "kind": "container", "name": "api",
+             "image": "nginx:alpine", "host_port": "8080",
+             "container_port": "80", "env_text": '{"MODE":"dev","COUNT":2}'}]}
+        result = yaml.safe_load(to_compose(graph))
+        service = result["services"]["api"]
+        self.assertEqual(service["ports"], ["8080:80"])
+        self.assertEqual(service["environment"], {"MODE": "dev", "COUNT": "2"})
+
     def test_duplicate_service_name_rejected(self):
         g={"nodes":[{"id":"1","kind":"container","name":"web","image":"nginx"},
                     {"id":"2","kind":"container","name":"web","image":"nginx"}]}
