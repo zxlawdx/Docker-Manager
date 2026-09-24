@@ -74,5 +74,5 @@ def save_dockerfile(name, content):
     target.write_text(content, encoding="utf-8")
     ignore = folder / ".dockerignore"
     if not ignore.exists():
-        ignore.write_text(".git\\n.env\\n*.env\\ncompose.yml\\ncompose.yaml\\n", encoding="utf-8")
+        ignore.write_text(chr(10).join([".git", ".env", "*.env", "compose.yml", "compose.yaml", ""]), encoding="utf-8")
     return {"ok": True, "folder": str(folder)}
