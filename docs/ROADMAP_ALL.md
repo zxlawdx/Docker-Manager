@@ -1,6 +1,6 @@
 # DockerFlow — implementação e backlog completo
 
-**Data:** 24/09/2026. **Branch:** `feat/vela-visual-studio` (PR #2 ainda draft).
+**Data:** 24/09/2026. **Branches:** `main` inclui PR #2; PR #3 `feat/dark-mode-studio-plus` permanece experimental.
 
 > Importante: funcionalidade presente em código não significa que tenha sido
 > validada em todos os sistemas ou liberada para produção. Os itens abaixo são
@@ -136,3 +136,17 @@ ser convertida em promessa de estabilidade.
 - [x] Testes unitários adicionais para ocultação de instruções sensíveis do histórico de imagens, análise de prune e bindings iniciais da UI.
 
 - [x] Campos básicos de CPU/memória/restart e mounts read-only/read-write expostos tanto no formulário quanto no inspetor visual de containers novos; faltam dispositivos, GPU e edição avançada de mounts.
+
+## Continuação PR #3 — entregas incrementais (requerem aceitação visual)
+
+- [x] Aparência claro, escuro e preferência do sistema, persistência local e contraste em todo o Vela Studio.
+- [x] Canvas: Shift+seleção, cópia/duplicação em memória de nós de rascunho, conexões copiadas entre selecionados, snap de 20 px, organização automática, pesquisa visual e export PNG/SVG.
+- [x] Rede bridge IPv4/IPv6 com IPAM, gateway separado, IPv6 estático, aliases e DNS customizado para novos containers.
+- [x] Diagnóstico opt-in DNS/TCP/HTTP entre containers reais, sem invocar shell; resultado inconclusivo quando faltam ferramentas ou o protocolo não confirma sucesso.
+- [x] Containers: consulta de processos sem COMMAND/ARGS; volumes associados a containers inclusive parados; inspeção de volume sem Options/labels para evitar revelar credenciais.
+- [x] Canvas passa a criar containers diretamente na primeira rede desenhada. Sem arestas, usa network=none e exige resolver conflitos do pré-voo (inclusive publicação de porta sem rede).
+- [x] IDE: linhas numeradas e prévia de realce sintático offline para YAML e Dockerfile, somente leitura, sem promessa de LSP/autocomplete.
+- [x] Terminal: histórico volátil das últimas 50 entradas e atalhos de navegação; limpa o histórico ao desmontar a interface; não grava comandos em disco.
+- [ ] Validação manual de acessibilidade, layouts WebView nativos Linux/Windows, restauração de sistema e testes de falha sob carga.
+
+**Continua fora do escopo deste incremento:** rollback transacional, empregos persistentes/stream real, xterm.js/WS, parser YAML preservando comentários, armazenamento de segredos com keyring, edição multi-host, scanners CVE/SBOM, backup consistente e Kubernetes. Não usar marcações de conclusão para esses itens.

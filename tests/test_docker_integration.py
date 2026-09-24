@@ -79,5 +79,36 @@ class DockerNetworkIntegrationTests(unittest.TestCase):
                 except Exception:
                     pass
 
+    def test_new_container_joins_requested_network_without_default_bridge(self):
+        """Rede inicial deve ser única, não criada via connect após attach à bridge."""
+        client = docker.from_env(timeout=40)
+        service = DockerService(client=client)
+        suffix = uuid.uuid4().hex[:10]
+        net_name = "dockerflow-ci-isolated-" + suffix
+        net_id = None
+        container_id = None
+        try:
+            client.images.pull("alpine:3.20")
+            net_id = service.network_action("create", {"name": net_name})["id"]
+            created = service.create_container({
+                "image": "alpine:3.20", "name": "dockerflow-ci-test-" + suffix,
+                "command": ["sleep", "120"], "network": net_id})
+            container_id = created["id"]
+            instance = client.containers.get(container_id)
+            instance.reload()
+            networks = instance.attrs["NetworkSettings"]["Networks"]
+            self.assertEqual(set(networks), {net_name})
+        finally:
+            if container_id:
+                try:
+                    client.containers.get(container_id).remove(force=True)
+                except Exception:
+                    pass
+            if net_id:
+                try:
+                    client.networks.get(net_id).remove()
+                except Exception:
+                    pass
+
 if __name__ == "__main__":
     unittest.main()

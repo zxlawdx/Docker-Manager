@@ -2,7 +2,7 @@
 
 **DockerFlow 0.2** é uma ferramenta desktop para visualizar e administrar Docker e desenhar suas redes com blocos, inspirada na interação de editores visuais como o BRModelo. Foi migrada de PyQt6 + gRPC para o **Vela Framework 0.2.2**, mantendo uma IDE para Docker Compose e Dockerfile e acrescentando um terminal Docker integrado.
 
-> **Branch de desenvolvimento:** `feat/vela-visual-studio`. A UI, os testes unitários e o pipeline foram adicionados, mas a integração com Docker Engine e os bundles de sistema devem passar por testes de aceitação antes de lançar uma versão final.
+> **Status:** a migração Vela da PR #2 está integrada à `main`. A continuação (tema escuro, editor avançado e diagnósticos) está na PR #3 até validação de testes e aceitação manual. Não use a aplicação experimental em hosts de produção sem revisar cada operação.
 
 ## Recursos
 
@@ -10,7 +10,9 @@
 - **Operações em estágios:** o canvas é somente um desenho até clicar **Aplicar alterações** e confirmar; geração de **Compose** a partir dos nós e conexões, export/import JSON, exemplo offline.
 - **Visão geral e gerenciamento:** containers (iniciar/parar/reiniciar/pausar/remover, inspecionar, logs, stats), imagens (pull/build/remove) e volumes (listar/criar/remover).
 - **IDE:** editor Compose, validação, `up -d`, `down`, gerenciamento de projetos locais; editor Dockerfile, presets Python/Node/Nginx/Go/PostgreSQL e build local.
-- **Terminal no aplicativo:** PTY Docker real para comandos e shells `sh`, `bash`, `ash`. Compatível com comandos de linha; **não** é emulador full-screen xterm.
+- **Terminal no aplicativo:** PTY Docker real para comandos e shells `sh`, `bash`, `ash`, com histórico de comandos só na memória da sessão (não salvo). **Não** é emulador full-screen xterm.
+- **PR #3, experimental:** alternância tema sistema/claro/escuro persistente; canvas com seleção múltipla, cópia/duplicação só de rascunhos, encaixe à grade, pesquisa, layout e PNG; IPAM IPv6/aliases/DNS; diagnóstico DNS/TCP/HTTP entre containers; identificação de volumes referenciados inclusive por containers parados; listagem de processos sem argumentos; IDE com números de linha e prévia sintática offline.
+- **Segurança da topologia:** novos containers do desenho entram diretamente na primeira rede ligada, sem anexação implícita à bridge padrão; blocos sem rede explícita usam `network=none`. O pré-voo permanece consultivo: alterações podem ocorrer entre validação e execução e a aplicação ainda não tem rollback atômico.
 
 Interface independente das páginas visuais do shell Vela: HTML/CSS/JS offline na janela nativa, tema editorial branco/verde e API Python em loopback. O código antigo gRPC e PyQt6 foi preservado no repositório para comparação, **não é executado** no novo `manage.py`.
 
@@ -19,7 +21,7 @@ Interface independente das páginas visuais do shell Vela: HTML/CSS/JS offline n
 Requer Python 3.12, Docker Engine funcional e Qt6/WebEngine. Execute o Docker com um usuário autorizado. Acesso ao socket do Docker equivale a controle privilegiado sobre o host: não exponha a API Vela na rede.
 
 ~~~bash
-git clone -b feat/vela-visual-studio https://github.com/zxlawdx/Docker-Manager.git
+git clone https://github.com/zxlawdx/Docker-Manager.git
 cd Docker-Manager
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -78,4 +80,4 @@ Consulte [auditoria técnica, limitações, comparativo do projeto original e ro
 
 ## Desenvolvimento e escopo
 
-Consulte o [roteiro completo de funcionalidades, pendências e limites](docs/ROADMAP_ALL.md). A migração Vela permanece na PR #2; não considere os recursos experimentais liberados para produção até concluir a validação.
+Consulte o [roteiro completo de funcionalidades, pendências e limites](docs/ROADMAP_ALL.md). A migração Vela foi integrada na PR #2. A PR #3 amplia o editor e a infraestrutura; não considere os recursos experimentais liberados para produção antes de validar a aplicação nativa e os workflows.

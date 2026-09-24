@@ -128,7 +128,7 @@
     if(page==="audit")loadAudit();
     if(page==="logs")loadLogContainers();
     if(page==="terminal")refreshTerminalList();
-    if(page==="ide")listProjects();
+    if(page==="ide"){listProjects();refreshEditorVisual();}
   }
   function setYaml(text){$("df-yaml").value=text;switchEditor("compose");}
   function renderOverview(){
