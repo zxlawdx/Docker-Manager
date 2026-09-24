@@ -599,7 +599,9 @@
       });
       history.length=0;future.length=0;sourceCompose="";
       state.nodes=nodes;state.edges=edges;state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
-      render();persistPositions();deps.toast("Topologia importada do Docker");
+      if(networkView==="zones")arrangeZones();else render();
+      persistPositions();deps.toast("Topologia importada do Docker");
+      return true;
     }
     function removeSelected() {
       if(!state.selected&&!selectedNodes.size)return;
@@ -752,6 +754,7 @@
       const el=e.target.closest(".df-graph-node");
       if(!el)return;
       const n=node(el.dataset.id);if(!n)return;
+      if(networkView==="zones"&&n.kind==="network"&&!e.target.closest("[data-zone-handle]"))return;
       if(e.shiftKey)return; // O click seleciona, sem iniciar arraste.
       checkpoint();
       if(!selectedNodes.has(n.id)){selectedNodes.clear();selectedNodes.add(n.id);}
@@ -815,6 +818,7 @@
         return;
       }
       if(state.activeDrag){
+        attachByDrop(state.activeDrag.positions.map(p=>p.id),e.clientX,e.clientY);
         if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);
         if(snapEnabled)state.activeDrag.positions.forEach(p=>{
           const item=node(p.id);if(item){item.x=snap(item.x);item.y=snap(item.y);}
@@ -937,7 +941,7 @@
     $("df-deploy-preview").onclick=previewPlan;
     $("df-graph-svg").onclick=exportSvg;
     $("df-graph-png").onclick=exportPng;
-    $("df-layout").onclick=autoLayout;
+    $("df-layout").onclick=()=>networkView==="zones"?arrangeZones():autoLayout();
     $("df-duplicate").onclick=()=>{copySelection();pasteSelection();};
     $("df-snap").checked=snapEnabled;
     $("df-snap").onchange=e=>{
@@ -953,13 +957,15 @@
     $("df-zoom-reset").onclick=()=>{state.zoom=1;state.pan={x:65,y:46};transform();};
     $("df-graph-demo").onclick=loadExample;
     $("df-graph-load").onclick=()=>importDocker();
+    $("df-graph-relations").onclick=importAllRelations;
+    $("df-network-view").onchange=e=>setNetworkView(e.target.value,e.target.value==="zones");
     $("df-graph-apply").onclick=apply;
     $("df-graph-save").onclick=exportJson;
     $("df-graph-compose").onclick=exportCompose;
     $("df-import-file").onclick=()=>$("df-import-input").click();
     $("df-import-input").onchange=e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value="";};
 
-    render();
-    return {importDocker,exportJson,render,addDraft,apply,loadGraph,getState:()=>state};
+    setNetworkView(networkView);
+    return {importDocker,importAllRelations,exportJson,render,addDraft,apply,loadGraph,getState:()=>state};
   };
 })();
