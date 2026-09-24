@@ -15,6 +15,70 @@
     const inspector = $("df-inspector-content"), svg = $("df-edges");
     const history=[], future=[];
     let wireDrag=null,suppressPortClick=false;
+    const selectedNodes=new Set();
+    let clipboard=null,searchTerm="";
+    let snapEnabled=true;
+    try{snapEnabled=localStorage.getItem("dockerflow.graph.snap")!=="false";}catch(_){}
+    const snap=(number)=>snapEnabled?Math.round(number/20)*20:Math.round(number);
+    const freshName=(name,kind)=>{let candidate=name+"-copia",i=2;
+      while(state.nodes.some(n=>n.kind===kind&&n.name===candidate))candidate=name+"-copia-"+i++;
+      return candidate;};
+    function selectedDrafts(){return state.nodes.filter(n=>selectedNodes.has(n.id)&&!n.existing);}
+    function copySelection(){
+      const draft=selectedDrafts();
+      if(!draft.length)return deps.toast("Selecione um bloco planejado; recursos existentes não podem ser duplicados automaticamente.");
+      const ids=new Set(draft.map(n=>n.id));
+      clipboard={nodes:JSON.parse(JSON.stringify(draft)),
+        edges:JSON.parse(JSON.stringify(state.edges.filter(e=>ids.has(e.source)&&ids.has(e.target))))};
+      deps.toast(draft.length+" bloco(s) de rascunho copiado(s) na memória do editor.");
+    }
+    function pasteSelection(){
+      if(!clipboard?.nodes?.length)return deps.toast("Copie blocos de rascunho antes de colar.");
+      if(state.nodes.length+clipboard.nodes.length>150)return deps.toast("Limite de 150 blocos no editor.",true);
+      checkpoint();
+      const ids=new Map();
+      selectedNodes.clear();
+      clipboard.nodes.forEach(n=>{
+        const id=uid();ids.set(n.id,id);
+        const copy={...JSON.parse(JSON.stringify(n)),id,name:freshName(n.name,n.kind),
+          x:snap(Math.min(2100,n.x+40)),y:snap(Math.min(1480,n.y+40)),
+          existing:false,dockerId:null,status:undefined};
+        // Nomes únicos até dentro do conjunto colado.
+        state.nodes.push(copy);selectedNodes.add(id);
+      });
+      clipboard.edges.forEach(e=>{
+        const a=ids.get(e.source),b=ids.get(e.target);
+        if(a&&b)state.edges.push({id:uid(),source:a,target:b,persisted:false});
+      });
+      state.selected={type:"node",id:[...selectedNodes][0]};
+      clipboard.nodes.forEach(n=>{n.x+=40;n.y+=40;});
+      render();persistPositions();
+      deps.toast("Cópia adicionada ao rascunho. Revise nomes e portas antes de aplicar.");
+    }
+    function autoLayout(){
+      if(!state.nodes.length)return;
+      checkpoint();
+      const networks=state.nodes.filter(n=>n.kind==="network"),
+        containers=state.nodes.filter(n=>n.kind==="container");
+      const connected=new Map(containers.map(n=>[n.id,0]));
+      state.edges.forEach(e=>{if(connected.has(e.target))connected.set(e.target,connected.get(e.target)+1);});
+      containers.sort((a,b)=>(connected.get(b.id)||0)-(connected.get(a.id)||0)||a.name.localeCompare(b.name));
+      networks.sort((a,b)=>a.name.localeCompare(b.name));
+      networks.forEach((n,i)=>{n.x=420;n.y=60+i*150;});
+      containers.forEach((n,i)=>{const left=i%2===0;n.x=left?85:770;n.y=60+Math.floor(i/2)*145;});
+      selectedNodes.clear();state.selected=null;persistPositions();render();
+      deps.toast("Layout reorganizado no desenho. Nenhum recurso Docker foi alterado.");
+    }
+    function isEditingTarget(target){return !!target.closest('input,textarea,select,[contenteditable="true"]');}
+    function onGraphKeyboard(e){
+      if(!stage.isConnected||isEditingTarget(e.target))return;
+      const cmd=e.ctrlKey||e.metaKey,key=e.key.toLowerCase();
+      if(cmd&&key==="c"){e.preventDefault();copySelection();}
+      if(cmd&&key==="v"){e.preventDefault();pasteSelection();}
+      if(cmd&&key==="d"){e.preventDefault();copySelection();pasteSelection();}
+      if(cmd&&key==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}
+      if((e.key==="Delete"||e.key==="Backspace")&&state.selected){e.preventDefault();removeSelected();}
+    }
     function graphPoint(clientX,clientY){
       const rect=stage.getBoundingClientRect();
       return {x:(clientX-rect.left-state.pan.x)/state.zoom,
@@ -30,6 +94,7 @@
     function restore(data){
       const saved=JSON.parse(data);
       Object.assign(state,saved,{selected:null,linking:null,activeDrag:null,origin:null});
+      selectedNodes.clear();
       render();persistPositions();
     }
     function undo(){
@@ -49,7 +114,7 @@
       // IDs presentes em JSON/Compose são rascunhos, nunca autorização para agir em recursos existentes.
       state.nodes=document.nodes.map(n=>({...n,existing:false,dockerId:null}));
       state.edges=document.edges.map(e=>({...e,persisted:false}));
-      state.removed=[];state.selected=null;state.linking=null;
+      state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
       sourceCompose=document.source_compose||"";
       render();persistPositions();
     }
@@ -129,7 +194,7 @@
       }
       return lines.join("\n")+"\n";
     }
-    function exportSvg(){
+    function svgDocument(){
       const elements=state.edges.map(e=>{
         const a=node(e.source),b=node(e.target);if(!a||!b)return "";
         return '<line x1="'+(a.x+87)+'" y1="'+(a.y+40)+'" x2="'+(b.x+87)+'" y2="'+(b.y+40)+'" stroke="#70a583" stroke-width="2"/>';
@@ -139,9 +204,35 @@
         '" y="'+(n.y+59)+'" font-family="sans-serif" font-size="10" fill="#537760">'+
         esc(n.kind==="network"?(n.driver||"bridge"):(n.image||"Sem imagem"))+'</text></g>').join("");
       const w=Math.max(760,...state.nodes.map(n=>n.x+230)),h=Math.max(480,...state.nodes.map(n=>n.y+140));
-      deps.download("dockerflow-diagrama.svg",'<svg xmlns="http://www.w3.org/2000/svg" width="'+w+
+      if(!Number.isFinite(w)||!Number.isFinite(h)||w>4000||h>4000)
+        throw new Error("Diagrama muito grande para exportação (máximo 4000×4000). Reorganize os blocos.");
+      return {w,h,content:'<svg xmlns="http://www.w3.org/2000/svg" width="'+w+
         '" height="'+h+'" viewBox="0 0 '+w+' '+h+'"><rect width="100%" height="100%" fill="#f6faf5"/>'+
-        elements+'</svg>',"image/svg+xml");
+        elements+'</svg>'};
+    }
+    function exportSvg(){
+      try{deps.download("dockerflow-diagrama.svg",svgDocument().content,"image/svg+xml");}
+      catch(e){deps.toast(e.message,true);}
+    }
+    async function exportPng(){
+      let url=null;
+      try {
+        const doc=svgDocument(),blob=new Blob([doc.content],{type:"image/svg+xml;charset=utf-8"});
+        url=URL.createObjectURL(blob);
+        const image=new Image();
+        await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error("Renderização PNG indisponível nesta WebView"));image.src=url;});
+        const canvas=document.createElement("canvas");
+        canvas.width=doc.w;canvas.height=doc.h;
+        const ctx=canvas.getContext("2d");
+        if(!ctx)throw new Error("Canvas não suportado");
+        ctx.drawImage(image,0,0);
+        const png=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+        if(!png)throw new Error("Não foi possível criar o PNG");
+        const pngUrl=URL.createObjectURL(png),a=document.createElement("a");
+        a.href=pngUrl;a.download="dockerflow-diagrama.png";document.body.appendChild(a);
+        a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(pngUrl),2000);
+      }catch(e){deps.toast(e.message,true);}
+      finally{if(url)URL.revokeObjectURL(url);}
     }
     function minimap(){
       const map=$("df-minimap");if(!map)return;
@@ -192,7 +283,8 @@
     function render() {
       transform();
       layer.innerHTML = state.nodes.map(n => {
-        const selected=state.selected && state.selected.type==="node" && state.selected.id===n.id;
+        const selected=selectedNodes.has(n.id)||(state.selected && state.selected.type==="node" && state.selected.id===n.id);
+        const dimmed=searchTerm&&!((n.name||"")+" "+(n.image||"")+" "+(n.driver||"")).toLocaleLowerCase("pt-BR").includes(searchTerm);
         const symbol=n.kind==="network"?"⌘":"⬡";
         const meta=n.kind==="network"?(n.driver||"bridge")+" · Docker network":
           (n.image||"Imagem não definida");
@@ -200,7 +292,7 @@
           (n.existing?"Rede existente":"Nova rede planejada"):
           (n.existing?(n.status||"desconhecido"):"Container planejado");
         return '<article class="df-graph-node '+esc(n.kind)+(n.existing?'':' draft')+
-          (selected?' selected':'')+'" data-id="'+esc(n.id)+'" style="left:'+Number(n.x)+
+          (selected?' selected':'')+(dimmed?' df-dimmed':'')+'" data-id="'+esc(n.id)+'" style="left:'+Number(n.x)+
           'px;top:'+Number(n.y)+'px"><div class="df-node-bar"></div><div class="df-node-body">'+
           '<div class="df-node-top"><span class="df-node-symbol">'+symbol+'</span><div style="min-width:0">'+
           '<div class="df-node-title" title="'+esc(n.name)+'">'+esc(n.name)+'</div>'+
@@ -295,6 +387,15 @@
 
     function renderInspector() {
       const selected=state.selected;
+      if(selectedNodes.size>1){
+        inspector.className="df-inspect-card";
+        inspector.innerHTML='<p class="df-eyebrow">SELEÇÃO MÚLTIPLA</p><h3>'+
+          selectedNodes.size+' blocos</h3><p>Shift+clique alterna a seleção. Só é possível duplicar blocos ainda não criados.</p>'+
+          '<button class="df-btn df-btn-subtle" data-graph-action="duplicate">Duplicar rascunhos</button>'+
+          '<button class="df-btn df-btn-warn" data-graph-action="delete-node">Retirar seleção do diagrama</button>';
+        $("df-selection-tip").textContent=selectedNodes.size+" blocos selecionados";
+        return;
+      }
       if (!selected) {
         inspector.className="df-inspector-empty";
         inspector.textContent="Selecione um bloco ou uma conexão para ver propriedades e opções.";
@@ -344,10 +445,10 @@
       });
       if (!values) return;
       const n={id:uid(),kind,name:values.name.trim()||"sem-nome",
-        x:Math.round(x),y:Math.round(y),existing:false,driver:"bridge",
+        x:snap(x),y:snap(y),existing:false,driver:"bridge",
         image:values.image?.trim()||"",internal:false};
       if(state.nodes.some(o=>o.name===n.name&&o.kind===n.kind)) return deps.toast("Nome já usado no desenho",true);
-      checkpoint();state.nodes.push(n);state.selected={type:"node",id:n.id};persistPositions();render();
+      checkpoint();state.nodes.push(n);selectedNodes.clear();selectedNodes.add(n.id);state.selected={type:"node",id:n.id};persistPositions();render();
     }
     async function connect(a,b) {
       if (a===b) return deps.toast("Escolha outro bloco",true);
@@ -393,7 +494,7 @@
         {id:uid(),source:uidNet,target:uidWeb,persisted:false},
         {id:uid(),source:uidNet,target:uidDb,persisted:false}
       ];
-      state.removed=[];state.selected=null;state.linking=null;
+      state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
       state.zoom=.85;state.pan={x:25,y:35};persistPositions();render();
       deps.toast("Exemplo editável carregado. O Docker ainda não foi alterado.");
     }
@@ -419,12 +520,20 @@
         });
       });
       history.length=0;future.length=0;sourceCompose="";
-      state.nodes=nodes;state.edges=edges;state.removed=[];state.selected=null;state.linking=null;
+      state.nodes=nodes;state.edges=edges;state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
       render();persistPositions();deps.toast("Topologia importada do Docker");
     }
     function removeSelected() {
-      if(!state.selected)return;
+      if(!state.selected&&!selectedNodes.size)return;
       checkpoint();
+      if(selectedNodes.size>1){
+        // Excluir visualmente não implica apagar containers/redes reais.
+        const removed=new Set(selectedNodes);
+        state.nodes=state.nodes.filter(n=>!removed.has(n.id));
+        state.edges=state.edges.filter(e=>!removed.has(e.source)&&!removed.has(e.target));
+        selectedNodes.clear();state.selected=null;render();persistPositions();
+        return;
+      }
       if(state.selected.type==="edge") {
         const e=state.edges.find(x=>x.id===state.selected.id);
         if (e?.persisted) state.removed.push({source:e.source,target:e.target});
@@ -442,7 +551,7 @@
         }
         state.nodes=state.nodes.filter(x=>x.id!==id);
       }
-      state.selected=null;render();persistPositions();
+      selectedNodes.clear();state.selected=null;render();persistPositions();
     }
     async function apply() {
       if(!draftCount())return deps.toast("Nenhuma alteração pendente");
@@ -560,8 +669,12 @@
       const el=e.target.closest(".df-graph-node");
       if(!el)return;
       const n=node(el.dataset.id);if(!n)return;
-      checkpoint();state.selected={type:"node",id:n.id};
-      state.activeDrag={id:n.id,clientX:e.clientX,clientY:e.clientY,x:n.x,y:n.y};
+      if(e.shiftKey)return; // O click seleciona, sem iniciar arraste.
+      checkpoint();
+      if(!selectedNodes.has(n.id)){selectedNodes.clear();selectedNodes.add(n.id);}
+      state.selected={type:"node",id:n.id};
+      state.activeDrag={id:n.id,clientX:e.clientX,clientY:e.clientY,
+        positions:state.nodes.filter(x=>selectedNodes.has(x.id)).map(x=>({id:x.id,x:x.x,y:x.y}))};
       el.setPointerCapture(e.pointerId);renderInspector();
     });
     layer.addEventListener("pointermove",e=>{
@@ -582,11 +695,15 @@
       if(!state.activeDrag)return;
       const drag=state.activeDrag,n=node(drag.id);
       if(!n)return;
-      n.x=Math.max(0,drag.x+(e.clientX-drag.clientX)/state.zoom);
-      n.y=Math.max(0,drag.y+(e.clientY-drag.clientY)/state.zoom);
-      // Sem recriar nodes durante arraste: mantém pointer capture.
-      const element=Array.from(layer.children).find(el=>el.dataset.id===n.id);
-      if(element){element.style.left=n.x+"px";element.style.top=n.y+"px";}
+      const dx=(e.clientX-drag.clientX)/state.zoom,dy=(e.clientY-drag.clientY)/state.zoom;
+      // Um movimento aplicado a todos os blocos selecionados; mantém pointer capture.
+      drag.positions.forEach(p=>{
+        const item=node(p.id);
+        if(!item)return;
+        item.x=Math.max(0,p.x+dx);item.y=Math.max(0,p.y+dy);
+        const element=Array.from(layer.children).find(el=>el.dataset.id===item.id);
+        if(element){element.style.left=item.x+"px";element.style.top=item.y+"px";}
+      });
       // Caminho SVG atualiza sem remover o DOM ativo.
       svg.innerHTML=state.edges.map(edge=>{
         const a=node(edge.source),b=node(edge.target);if(!a||!b)return "";
@@ -614,7 +731,12 @@
         }
         return;
       }
-      if(state.activeDrag){state.activeDrag=null;persistPositions();render();}
+      if(state.activeDrag){
+        if(snapEnabled)state.activeDrag.positions.forEach(p=>{
+          const item=node(p.id);if(item){item.x=snap(item.x);item.y=snap(item.y);}
+        });
+        state.activeDrag=null;persistPositions();render();
+      }
     });
     layer.addEventListener("pointercancel",()=>{
       wireDrag=null;svg.querySelector("[data-preview-wire]")?.remove();
@@ -631,11 +753,17 @@
         return;
       }
       const el=e.target.closest("[data-id]");
-      if(el){state.selected={type:"node",id:el.dataset.id};render();}
+      if(el){
+        const id=el.dataset.id;
+        if(e.shiftKey){if(selectedNodes.has(id))selectedNodes.delete(id);else selectedNodes.add(id);}
+        else if(!selectedNodes.has(id)){selectedNodes.clear();selectedNodes.add(id);}
+        state.selected=selectedNodes.size?{type:"node",id:[...selectedNodes][0]}:null;
+        render();
+      }
     });
     svg.addEventListener("click",e=>{
       const path=e.target.closest("[data-edge]");
-      if(path){state.selected={type:"edge",id:path.dataset.edge};render();}
+      if(path){selectedNodes.clear();state.selected={type:"edge",id:path.dataset.edge};render();}
     });
     stage.addEventListener("pointerdown",e=>{
       if(e.target!==stage)return;
@@ -690,6 +818,7 @@
       if(!action)return;
       const n=node(state.selected?.id);
       if(action==="remove-edge"||action==="delete-node")return removeSelected();
+      if(action==="duplicate"){copySelection();pasteSelection();return;}
       if(action==="terminal"&&n){deps.openTerminal(n.dockerId);}
       if(action==="diagnose"&&n){
         const others=state.nodes.filter(item=>item.kind==="container"&&item.existing&&item.id!==n.id);
@@ -723,6 +852,16 @@
     $("df-diagram-diff").onclick=compareDocker;
     $("df-deploy-preview").onclick=previewPlan;
     $("df-graph-svg").onclick=exportSvg;
+    $("df-graph-png").onclick=exportPng;
+    $("df-layout").onclick=autoLayout;
+    $("df-duplicate").onclick=()=>{copySelection();pasteSelection();};
+    $("df-snap").checked=snapEnabled;
+    $("df-snap").onchange=e=>{
+      snapEnabled=e.target.checked;
+      try{localStorage.setItem("dockerflow.graph.snap",String(snapEnabled));}catch(_){}
+    };
+    $("df-graph-search").oninput=e=>{searchTerm=e.target.value.trim().toLocaleLowerCase("pt-BR");render();};
+    document.addEventListener("keydown",onGraphKeyboard);
     $("df-graph-report").onclick=exportReport;
     $("df-template-load").onclick=()=>useTemplate($("df-template").value);
     $("df-zoom-in").onclick=()=>{state.zoom=Math.min(1.8,state.zoom+.1);transform();};
