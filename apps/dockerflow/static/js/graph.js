@@ -289,11 +289,21 @@
         title:"Aplicar alterações ao Docker?",
         description:"Será criado: "+planned.length+" bloco(s), conectado: "+count+
           " ligação(ões), desconectado: "+state.removed.length+
-          ". Operações são sequenciais; falhas podem deixar parte já aplicada.",fields:[],
+          ". Imagens ausentes serão baixadas primeiro. Operações não são atômicas.",fields:[],
         confirmText:"Aplicar ao Docker"
       });
       if(!accepted)return;
       try {
+        // Pré-voo: obter imagens ausentes ANTES de criar redes para reduzir operações parciais.
+        const installed=await deps.api("/images");
+        const localTags=new Set(installed.flatMap(image=>image.tags||[]));
+        for(const n of planned.filter(item=>item.kind==="container")){
+          if(!localTags.has(n.image)){
+            deps.toast("Baixando imagem ausente: "+n.image);
+            await deps.api("/images/action","POST",{action:"pull",image:n.image});
+            localTags.add(n.image);
+          }
+        }
         // 1. Redes antes dos containers: estes podem escolher a rede ao nascer.
         for(const n of planned.filter(x=>x.kind==="network")){
           const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal});
