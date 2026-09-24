@@ -1,224 +1,76 @@
-# 🐳 DockerFlow
+# DockerFlow — Docker Studio em Vela
 
-**DockerFlow** é uma aplicação desktop para gerenciar containers e imagens Docker com uma interface gráfica moderna. Ele usa **gRPC** para a comunicação entre a interface (cliente) e o serviço que controla o Docker (servidor).
+**DockerFlow 0.2** é uma ferramenta desktop para visualizar e administrar Docker e desenhar suas redes com blocos, inspirada na interação de editores visuais como o BRModelo. Foi migrada de PyQt6 + gRPC para o **Vela Framework 0.2.2**, mantendo uma IDE para Docker Compose e Dockerfile e acrescentando um terminal Docker integrado.
 
----
+> **Branch de desenvolvimento:** `feat/vela-visual-studio`. A UI, os testes unitários e o pipeline foram adicionados, mas a integração com Docker Engine e os bundles de sistema devem passar por testes de aceitação antes de lançar uma versão final.
 
-## 📋 Sumário
+## Recursos
 
-- [Como funciona](#como-funciona)
-- [Estrutura do projeto](#estrutura-do-projeto)
-- [Requisitos](#requisitos)
-- [Instalação](#instalação)
-- [Como rodar](#como-rodar)
-- [O que você pode fazer](#o-que-você-pode-fazer)
-- [Como criar uma nova tela](#como-criar-uma-nova-tela)
-- [Como criar uma nova função no backend](#como-criar-uma-nova-função-no-backend)
-- [Tecnologias usadas](#tecnologias-usadas)
+- **Laboratório visual:** importe containers/redes existentes, arraste novos blocos, dê zoom, edite rascunhos e conecte containers a redes bridge. Clicar no conector de dois containers propõe uma rede compartilhada.
+- **Operações em estágios:** o canvas é somente um desenho até clicar **Aplicar alterações** e confirmar; geração de **Compose** a partir dos nós e conexões, export/import JSON, exemplo offline.
+- **Visão geral e gerenciamento:** containers (iniciar/parar/reiniciar/pausar/remover, inspecionar, logs, stats), imagens (pull/build/remove) e volumes (listar/criar/remover).
+- **IDE:** editor Compose, validação, `up -d`, `down`, gerenciamento de projetos locais; editor Dockerfile, presets Python/Node/Nginx/Go/PostgreSQL e build local.
+- **Terminal no aplicativo:** PTY Docker real para comandos e shells `sh`, `bash`, `ash`. Compatível com comandos de linha; **não** é emulador full-screen xterm.
 
----
+Interface independente das páginas visuais do shell Vela: HTML/CSS/JS offline na janela nativa, tema editorial branco/verde e API Python em loopback. O código antigo gRPC e PyQt6 foi preservado no repositório para comparação, **não é executado** no novo `manage.py`.
 
-## Como funciona
+## Desenvolvimento (Linux Mint/Ubuntu)
 
-O DockerFlow é dividido em duas partes que conversam entre si:
+Requer Python 3.12, Docker Engine funcional e Qt6/WebEngine. Execute o Docker com um usuário autorizado. Acesso ao socket do Docker equivale a controle privilegiado sobre o host: não exponha a API Vela na rede.
 
-```
-┌─────────────────────┐        gRPC (porta 50051)        ┌──────────────────────┐
-│  Interface gráfica  │  ──────────────────────────────►  │  Servidor            │
-│  (PyQt6)            │                                   │  (grpc_server)       │
-│  docker_manager_    │  ◄──────────────────────────────  │                      │
-│  client/            │        resposta Protobuf           │  Controla o Docker   │
-└─────────────────────┘                                   └──────────────────────┘
-```
+~~~bash
+git clone -b feat/vela-visual-studio https://github.com/zxlawdx/Docker-Manager.git
+cd Docker-Manager
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip setuptools wheel
+python -m pip install -r requirements-build.txt
+python manage.py collectstatic --no-tailwind
+python manage.py runapp
+~~~
 
-1. Você abre a interface gráfica (cliente)
-2. A interface faz uma chamada gRPC para o servidor
-3. O servidor recebe o pedido, executa a ação no Docker e devolve a resposta
-4. A interface exibe o resultado na tela
+Para instalar dependências de Qt6/WebEngine do sistema operacional, consulte o guia de distribuição do Vela. **Use venv isolado**, sem `--system-site-packages`, no build Qt6; isso evita dependências incompatíveis de `pkg_resources`, `jaraco` e GUI do Python do sistema. O aplicativo abre mesmo quando o Docker Engine estiver indisponível; operações no daemon exigem conexão.
 
----
+## Testes e build
 
-## Estrutura do projeto
+~~~bash
+python -m unittest discover -s tests -v
+node --check apps/dockerflow/static/js/graph.js
+node --check apps/dockerflow/static/js/studio.js
+python manage.py buildapp --gui qt6 --installer
+./dist/DockerFlow/DockerFlow --self-test
+~~~
 
-```
-docker_manager/
-├── manage.py                        # Ponto de entrada: roda servidor, cliente ou ambos
-├── requirements.txt                 # Dependências Python
-│
-├── grpc_server/                     # SERVIDOR — controla o Docker
-│   ├── docker_manager.proto         # Contrato gRPC (define funções e tipos de dados)
-│   ├── docker_manager_pb2.py        # Gerado automaticamente pelo protoc
-│   ├── docker_manager_pb2_grpc.py   # Gerado automaticamente pelo protoc
-│   ├── server.py                    # Lógica do servidor gRPC
-│   └── url.py                       # Mapeamento de arquivos (usado pelo manage.py)
-│
-└── docker_manager_client/           # CLIENTE — interface gráfica
-    ├── app.py                       # Ponto de entrada do cliente
-    ├── main_window.py               # Janela principal + estilos globais
-    ├── grpc_client.py               # Camada de comunicação com o servidor
-    ├── containers_page.py           # Tela de gerenciamento de containers
-    ├── create_container_page.py           # Tela de gerenciamento de containers
-    ├── images_page.py               # Tela de listagem de imagens
-    ├── manage_widget.py             # Alternativa de inicialização da interface
-    ├── url.py                       # Mapeamento de arquivos (usado pelo manage.py)
-    └── models/
-        └── container.py             # Modelo de dados de um container
-```
+No Windows, o comando de build também é `python manage.py buildapp --gui qt6 --installer`; o teste do binário é `.\dist\DockerFlow\DockerFlow.exe --self-test`.
 
----
+O workflow `.github/workflows/release.yml` usa a mesma estratégia de release do projeto `acess_manager`: valida PRs e, após merge, gera builds **Linux x86_64** e **Windows x86_64** para cada nova tag `v*`, verifica os executáveis, publica ZIPs, checksums SHA256 e GitHub Release. Também aceita execução manual para tag existente.
 
-## Requisitos
+~~~bash
+git checkout main
+git pull --ff-only
+git tag v0.2.0
+git push origin v0.2.0
+~~~
 
-- Python **3.8+**
-- Docker instalado e **em execução** na sua máquina
-- pip atualizado
+Só crie tags após revisar o PR e confirmar a execução do workflow.
 
----
+## Estrutura nova
 
-## Instalação
+~~~text
+apps/dockerflow/
+  api.py                    # endpoints HTTP Vela locais
+  services/
+    docker_service.py       # adapter SDK Docker
+    compose_service.py      # workspace local e docker compose
+    graph_service.py        # grafo -> YAML
+    terminal_service.py     # sessões PTY dentro de containers
+  views/studio.py
+  templates/studio.html
+  static/css/studio.css
+  static/js/{studio,graph}.js
+config/{settings,wsgi}.py
+tests/test_dockerflow.py
+.github/workflows/release.yml
+~~~
 
-```bash
-# 1. Clone ou extraia o projeto
-cd docker_manager
-
-# 2. (Recomendado) Crie um ambiente virtual
-python -m venv venv
-source venv/bin/activate        # Linux/Mac
-# ou
-venv\Scripts\activate           # Windows
-
-# 3. Instale as dependências
-pip install -r requirements.txt
-```
-
----
-
-## Como rodar
-
-O `manage.py` é o arquivo central que sobe tudo para você:
-
-```bash
-# Rodar servidor + cliente juntos (mais fácil)
-python manage.py runall
-
-# Rodar só o servidor gRPC
-python manage.py runserver
-
-# Rodar só o cliente (interface gráfica)
-python manage.py runclient
-```
-
-O servidor precisa estar rodando antes do cliente. O `runall` já cuida disso automaticamente.
-
----
-
-## O que você pode fazer
-
-| Tela | Funcionalidade |
-|------|---------------|
-| **Containers** | Ver todos os containers, iniciar, parar e remover |
-| **Imagens** | Ver todas as imagens Docker locais com tamanho e data |
-
----
-
-## Como criar uma nova tela
-
-1. Crie um arquivo na pasta `docker_manager_client/`, por exemplo `volumes_page.py`
-2. Use este esqueleto como base:
-
-```python
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from grpc_client import GrpcClient
-
-class VolumesPage(QWidget):
-    def __init__(self):
-        super().__init__()
-        self._build_ui()
-        self.refresh()
-
-    def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        self.title = QLabel("📁 Volumes")
-        self.title.setObjectName("PageTitle")
-        layout.addWidget(self.title)
-
-    def refresh(self):
-        client = GrpcClient()
-        # chame aqui a função do cliente gRPC
-```
-
-3. Registre a tela em `main_window.py`:
-
-```python
-from volumes_page import VolumesPage
-
-# dentro de _build_ui(), adicione:
-self._add_page("volumes", VolumesPage())
-
-# e no nav_items da Sidebar, adicione:
-("Volumes", "📁", "volumes"),
-```
-
----
-
-## Como criar uma nova função no backend
-
-1. **Adicione o método no arquivo `.proto`** (`grpc_server/docker_manager.proto`):
-
-```proto
-service DockerManager {
-  // ... funções existentes ...
-  rpc ListVolumes (Empty) returns (VolumeList);
-}
-
-message VolumeInfo {
-  string name = 1;
-  string driver = 2;
-}
-
-message VolumeList {
-  repeated VolumeInfo volumes = 1;
-}
-```
-
-2. **Regere os arquivos automáticos** (dentro da pasta `grpc_server/`):
-
-```bash
-cd grpc_server
-python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. docker_manager.proto
-```
-
-3. **Implemente a função em `server.py`**:
-
-```python
-def ListVolumes(self, request, context):
-    volumes = self.docker_client.volumes.list()
-    response = pb2.VolumeList()
-    for v in volumes:
-        response.volumes.append(pb2.VolumeInfo(
-            name=v.name,
-            driver=v.attrs.get("Driver", "")
-        ))
-    return response
-```
-
-4. **Exponha a função em `grpc_client.py`**:
-
-```python
-def list_volumes(self) -> list[dict]:
-    response = self._stub.ListVolumes(pb2.Empty())
-    return [{"name": v.name, "driver": v.driver} for v in response.volumes]
-```
-
----
-
-## Tecnologias usadas
-
-| Tecnologia | Para que serve |
-|-----------|---------------|
-| **PyQt6** | Interface gráfica desktop |
-| **gRPC** | Comunicação entre cliente e servidor |
-| **Protobuf** | Formato dos dados trocados via gRPC |
-| **Docker SDK** | Controla o Docker via Python |
-| **Python 3.12** | Linguagem principal do projeto |
+Consulte [auditoria técnica, limitações, comparativo do projeto original e roadmap](docs/DOCKER_GAP_ANALYSIS.md) para a lista completa. Alterações sequenciais do diagrama **não são atômicas**; se uma etapa falhar, atualize a topologia antes de tentar novamente.
