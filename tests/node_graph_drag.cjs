@@ -114,6 +114,7 @@ async function main(){
   assert.ok(calls.some(v=>v.url==="/compose/variables/set"));
   const draft=graph.getState().nodes.find(x=>x.id===passwordNode.id);
   assert.equal(JSON.parse(draft.env_text).POSTGRES_PASSWORD,"${DB_PASSWORD}");
+  assert.equal(draft.secret_project,"dockerflow","Save secret owner alongside the reference");
   assert.ok(!JSON.stringify(graph.getState()).includes("never-in-diagram"),
     "Secrets must not be saved in graph history/exportable data");
   console.log("Graph interaction smoke: node drag, pan, zone drop, secret reference OK");

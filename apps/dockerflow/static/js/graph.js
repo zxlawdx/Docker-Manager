@@ -488,7 +488,7 @@
       return {name:n.name,image:n.image,network:null,ports,volumes:mounts,environment,
               cpus:n.cpus||"",memory_mb:n.memory_mb||"",restart:n.restart||"",
               read_only:!!n.read_only,
-              secret_project:hasReferences?$("df-project").value.trim():null};
+              secret_project:hasReferences?(n.secret_project||$("df-project").value.trim()):null};
     }
 
     function renderInspector() {
@@ -1032,6 +1032,7 @@
         form.password="";
         checkpoint();
         env[form.env]="\${"+form.secret+"}";
+        n.secret_project=project;
         n.env_text=JSON.stringify(env,null,2);
         render();
         deps.toast("Senha cadastrada no projeto "+project+". Somente a referência está no desenho.");
