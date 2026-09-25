@@ -92,8 +92,8 @@
       stage.classList.toggle("df-zone-mode",networkView==="zones");
       $("df-network-view").value=networkView;
       $("df-stage-hint").textContent=networkView==="zones"?
-        "Arraste o container para dentro da rede. Associação pendente até clicar Aplicar.":
-        "Arraste cartões para mover; conectores para ligar. Shift seleciona múltiplos.";
+        "Arraste para a área de rede; clique na paleta para criar blocos. Setas também movem a seleção.":
+        "Arraste cartões para mover; clique na paleta para criar. Setas movem a seleção.";
       try{localStorage.setItem("dockerflow.network.view",networkView);}catch(_){}
       if(rearrange&&networkView==="zones")arrangeZones();else render();
     }
@@ -971,7 +971,12 @@
     document.querySelectorAll(".df-palette-item").forEach(el=>{
       el.addEventListener("dragstart",e=>e.dataTransfer.setData("application/dockerflow-node",el.dataset.kind));
       // Também funciona no WebView sem suporte consistente ao dragstart.
-      el.addEventListener("dblclick",()=>addDraft(el.dataset.kind,150+Math.random()*130,90+Math.random()*160));
+      el.addEventListener("click",()=>addDraft(el.dataset.kind,150+Math.random()*130,90+Math.random()*160));
+      el.addEventListener("keydown",e=>{
+        if(e.key==="Enter"||e.key===" "){
+          e.preventDefault();addDraft(el.dataset.kind,150,110);
+        }
+      });
     });
     inspector.addEventListener("change",e=>{
       const n=node(state.selected?.id);

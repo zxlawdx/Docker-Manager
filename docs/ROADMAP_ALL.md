@@ -162,3 +162,13 @@ ser convertida em promessa de estabilidade.
 - [x] Testes unitários sobre catálogo, fluxo de admin, captura estática dos eventos e bindings da interface.
 - [ ] Teste manual de arraste/soltar em WebView Linux e Windows com mouse/touchpad; ampliar cobertura automatizada E2E.
 - [ ] Volumes de produção: backups consistentes por serviço, scanner de segurança, acesso multiusuário e migração entre daemons continuam pendentes.
+
+### Correções de credenciais, volumes e arraste · PR #3
+
+- [x] Compose IDE: painel de variáveis por projeto com senha mascarada, indicadores de presença, substituição e exclusão de valores.
+- [x] Persistência privada por projeto, sem endpoint para recuperar valores, sem impressão de valores no resultado Docker Compose e sem senha em arquivos YAML.
+- [x] Laboratório: assistente de senha por serviço planejado; guarda somente `${VARIAVEL}` no grafo; backend resolve o segredo no momento de criar o container.
+- [x] Remoção total de volumes em painel administrativo separado, prévia e fingerprint independentes, frase `APAGAR VOLUMES` e confirmação nativa polkit; nenhum volume em uso é removido automaticamente.
+- [x] Captura robusta de arraste/pan via handlers globais (além do DOM interno do canvas); seleção e deslocamento por setas; clique como alternativa à paleta HTML5.
+- [x] Testes unitários de proteção/isolamento de credenciais, pré-voo de volumes e teste automatizado de interação do canvas.
+- [ ] Homologação manual da interface nativa no ambiente Linux Mint do mantenedor e tratamento de casos incomuns de drivers remotos.

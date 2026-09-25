@@ -48,9 +48,9 @@
       </div>
       <div class="df-studio-grid">
         <aside class="df-palette">
-          <div class="df-palette-intro"><strong>Elementos</strong><small>Arraste para a tela</small></div>
-          <div class="df-palette-item" draggable="true" data-kind="container"><span class="df-shape df-shape-container">⬡</span><div><b>Container</b><small>Serviço / imagem</small></div><span>⋮⋮</span></div>
-          <div class="df-palette-item" draggable="true" data-kind="network"><span class="df-shape df-shape-network">⌘</span><div><b>Rede bridge</b><small>Conectividade Docker</small></div><span>⋮⋮</span></div>
+          <div class="df-palette-intro"><strong>Elementos</strong><small>Arraste ou clique para adicionar</small></div>
+          <div class="df-palette-item" draggable="true" role="button" tabindex="0" aria-label="Adicionar container ao laboratório" data-kind="container"><span class="df-shape df-shape-container">⬡</span><div><b>Container</b><small>Serviço / imagem</small></div><span>⋮⋮</span></div>
+          <div class="df-palette-item" draggable="true" role="button" tabindex="0" aria-label="Adicionar rede ao laboratório" data-kind="network"><span class="df-shape df-shape-network">⌘</span><div><b>Rede bridge</b><small>Conectividade Docker</small></div><span>⋮⋮</span></div>
           <div class="df-palette-note"><b>Como conectar?</b><p>Grafo: ligue os conectores. Redes como áreas: solte o container dentro do quadrado da rede. A conexão só será criada no Docker ao clicar Aplicar.</p></div>
           <div class="df-palette-foot"><label class="df-field">Topologia pronta<select id="df-template"><option value="">Escolher modelo...</option><option value="web-db">Web + Banco + Redis</option><option value="reverse-proxy">Proxy + APIs</option><option value="microservices">Microsserviços</option></select></label><button class="df-btn df-btn-subtle" id="df-template-load">Inserir template</button><button class="df-btn df-btn-subtle" id="df-import-file">↑ Importar JSON</button><input type="file" id="df-import-input" accept=".json,application/json" hidden></div>
         </aside>

@@ -492,3 +492,18 @@
 #dockerflow-root[data-theme="dark"] .df-env-badge.missing {background:#51352f;color:#ffb4a7}
 #dockerflow-root .df-admin-card + .df-admin-card {margin-top:18px}
 #dockerflow-root .df-admin-result p {margin-bottom:8px}
+
+/* Drag sem seleção nativa: QtWebEngine, mouse, touchpad e toque. */
+#dockerflow-root .df-graph-node,
+#dockerflow-root .df-node-body,
+#dockerflow-root .df-node-bar {
+  touch-action:none;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+#dockerflow-root #df-stage {overscroll-behavior:contain}
+#dockerflow-root #df-stage.df-dragging .df-graph-node.selected,
+#dockerflow-root #df-stage.df-panning {cursor:grabbing}
+#dockerflow-root .df-palette-item {cursor:pointer;touch-action:manipulation}
+#dockerflow-root .df-palette-item:focus-visible {outline:2px solid #75b78b;outline-offset:2px}

@@ -43,6 +43,7 @@ jobs:
           .venv-build/bin/python -m unittest discover -s tests -v
           node --check apps/dockerflow/static/js/graph.js
           node --check apps/dockerflow/static/js/studio.js
+          node tests/node_graph_drag.cjs
           .venv-build/bin/python manage.py collectstatic --no-tailwind
           test -f staticfiles/dockerflow/js/graph.js
           test -f staticfiles/dockerflow/js/studio.js
