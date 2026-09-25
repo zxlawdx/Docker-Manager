@@ -447,7 +447,9 @@
         '</textarea></label>'+
         '<label class="df-field">Variáveis de ambiente (JSON)'+
         '<textarea data-edit="env_text" rows="4" spellcheck="false" placeholder="{ }">'+
-        esc(n.env_text||"{}")+'</textarea></label>';
+        esc(n.env_text||"{}")+'</textarea></label>'+
+        '<button type="button" class="df-btn df-btn-subtle" data-graph-action="configure-secret">'+
+        '🔐 Definir senha deste serviço</button>';
     }
     function containerPayload(n) {
       let environment;
@@ -455,9 +457,14 @@
       catch(_) {throw new Error("JSON de ambiente inválido no container "+n.name);}
       if(!environment || typeof environment!=="object" || Array.isArray(environment))
         throw new Error("Variáveis do container "+n.name+" precisam ser um objeto JSON.");
-      if(Object.values(environment).some(v=>typeof v==="string"&&/\$\{[^}]+\}/.test(v)))
-        throw new Error("Preencha as credenciais pendentes de "+n.name+
-          " antes de criar containers reais. Na IDE Compose, placeholders são resolvidos pelo ambiente.");
+      // Somente referências exatas são resolvidas no backend; jamais
+      // persistir senhas no estado do grafo, histórico ou export JSON.
+      const hasReferences=Object.values(environment).some(v=>
+        typeof v==="string"&&v.includes("\${"));
+      if(hasReferences&&Object.values(environment).some(v=>
+        typeof v==="string"&&v.includes("\${")&&
+        !/^\$\{[A-Za-z_][A-Za-z0-9_]*(?::\?[^}]*)?\}$/.test(v)))
+        throw new Error("Use apenas referências \${VARIAVEL} em "+n.name+".");
       const ports=[],host=String(n.host_port||"").trim(),inside=String(n.container_port||"").trim();
       if(host||inside){
         if(!host||!inside||![host,inside].every(v=>/^\d+$/.test(v)&&Number(v)>0&&Number(v)<65536))
@@ -480,7 +487,8 @@
         throw new Error("Use lista JSON de volumes: source, target e mode opcional ro/rw.");
       return {name:n.name,image:n.image,network:null,ports,volumes:mounts,environment,
               cpus:n.cpus||"",memory_mb:n.memory_mb||"",restart:n.restart||"",
-              read_only:!!n.read_only};
+              read_only:!!n.read_only,
+              secret_project:hasReferences?$("df-project").value.trim():null};
     }
 
     function renderInspector() {

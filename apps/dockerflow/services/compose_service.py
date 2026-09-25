@@ -142,6 +142,60 @@ def _redact_output(output, values):
     return output
 
 
+# Uma referência não revela seu valor ao frontend ou no JSON do laboratório.
+# O servidor injeta o segredo apenas no instante de criar o container.
+GRAPH_SECRET = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)(?::\?[^}]*)?\}$")
+
+
+def resolve_container_secrets(data):
+    if not isinstance(data, dict):
+        raise ValueError("Parâmetros do container inválidos.")
+    raw = data.get("environment") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("Environment deve ser um objeto com chaves e valores.")
+    resolved = {}
+    needed = {}
+    for name, value in raw.items():
+        if not isinstance(name, str) or not KEY.fullmatch(name):
+            raise ValueError("Nome de variável do serviço inválido.")
+        if not isinstance(value, (str, int, float, bool)):
+            raise ValueError("Valores do serviço devem ser escalares.")
+        if isinstance(value, str) and "\${" in value:
+            match = GRAPH_SECRET.fullmatch(value)
+            if not match:
+                raise ValueError("Use uma referência única \${NOME} para credenciais "
+                                 "do laboratório ou configure na Compose IDE.")
+            needed[name] = match.group(1)
+        else:
+            resolved[name] = value
+    if needed:
+        project = data.get("secret_project")
+        if not project:
+            raise ValueError("Escolha um projeto e cadastre suas variáveis no gerenciador de senhas.")
+        vault = _read_private(project)
+        for container_key, secret_key in needed.items():
+            value = vault.get(secret_key)
+            if not value:
+                raise ValueError("Variável " + secret_key + " não cadastrada no projeto " + project)
+            resolved[container_key] = value
+    return {**data, "environment": resolved}
+
+
+def create_container_with_secrets(data, facade):
+    prepared = resolve_container_secrets(data)
+    try:
+        return facade.create_container(prepared)
+    except Exception as error:
+        # Exceções retornadas pelo Engine podem repetir dados do corpo HTTP.
+        # Não transmitir o erro original à UI e não registrar o dict de segredos.
+        from docker.errors import DockerException
+        if isinstance(error, DockerException):
+            raise ValueError("Docker recusou a criação do container. "
+                             "Consulte o estado do Engine, da imagem e das redes; "
+                             "detalhes internos foram omitidos para proteger credenciais.") from None
+        raise
+
+
 def save(name, content):
     _validate(content)
     folder = _private_dir(name, create=True)

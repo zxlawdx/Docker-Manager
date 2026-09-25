@@ -103,7 +103,7 @@ def containers():
 
 @api.post("/containers/create")
 def containers_create(context):
-    return safe(d.create_container, body(context))
+    return safe(compose.create_container_with_secrets, body(context), d)
 
 @api.post("/containers/action")
 def containers_action(context):
