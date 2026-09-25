@@ -98,3 +98,31 @@ A biblioteca offline possui modelos individuais e stacks YAML editáveis (Postgr
 A tela **Administração** possui verificação prévia e um botão separado para remoção de todos os containers **locais**. Este recurso é intencionalmente restrito a Linux com socket `/var/run/docker.sock` e agente gráfico polkit/pkexec instalado. Use o aplicativo como usuário normal autorizado a consultar o Docker. A sequência é: verificar a lista, digitar exatamente `APAGAR TODOS`, confirmar a janela gráfica do **sistema operacional** (fora da WebView) e conferir novamente os containers. Nenhuma senha é recebida no HTML, nenhuma elevação silenciosa ocorre e não há fallback automático se a autorização falhar. A operação força a remoção de containers, mas **não apaga volumes nomeados**. Dados apenas na camada gravável dos containers podem se perder.
 
 Esta ferramenta não constitui controle de acesso multiusuário. Qualquer conta que já tenha permissão de escrever no socket Docker dispõe potencialmente de privilégios equivalentes aos de root; não exponha a aplicação na rede. Confira o daemon e faça backup antes de operações destrutivas.
+
+## Variáveis e senhas no DockerFlow · atualização da PR #3
+
+Os templates Compose usam referências como:
+
+```yaml
+services:
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Defina GRAFANA_PASSWORD}
+```
+
+**Não substitua o texto depois de `:` pela senha.** Em `${VAR:?mensagem}`, o texto depois de `?` é a mensagem quando a variável está ausente, não seu valor.
+
+Na **Compose IDE**, escolha o **Nome do projeto** e abra o quadro **Variáveis e senhas**. Informe `GRAFANA_PASSWORD` e digite sua senha no campo próprio; clique em **Salvar variável neste projeto**, depois **Validar YAML** e **docker compose up**. A senha é transmitida ao Docker Compose como variável de ambiente no momento da execução, não é inserida no YAML nem devolvida por APIs de listagem. O aplicativo grava os valores em um arquivo JSON privado no workspace (modo 0600 no Linux, diretório 0700), **não em um keyring criptografado**: proteja sua conta e o backup do computador.
+
+No **Laboratório visual**, selecione um container *planejado* e clique em **🔐 Definir senha deste serviço**. Informe a variável esperada pela imagem e a chave do projeto. O diagrama contém somente `${VARIAVEL}` e o backend resolve o valor do mesmo projeto ao criar o container, sem incluí-lo no JSON exportado. Para alterar credenciais de um container já existente, edite o Compose e **recrie** o serviço, conforme a imagem.
+
+### Apagar todos os volumes
+
+A tela **Administração** também possui uma opção independente para todos os volumes do Docker Engine local. O app lista os volumes (inclusive anônimos) e as referências encontradas; não permite executar caso **qualquer** volume esteja associado a um container existente, mesmo parado. Se desejar remover ambos, conclua primeiro a operação de containers, atualize a lista de volumes e só então digite `APAGAR VOLUMES` e autorize a janela nativa polkit. O botão não ignora erros nem possui modo silencioso. **Todo conteúdo dos volumes excluídos é irrecuperável sem backup**, inclusive dados de banco. Drivers externos podem afetar sistemas de armazenamento remotos.
+
+### Arraste e alternativa acessível
+
+Os eventos de movimento/soltura são capturados em nível de janela para lidar com perda de ponteiro na WebView Qt6. A paleta funciona por **arrastar ou clicar**; para mover um bloco, clique e arraste seu cartão. Se o dispositivo ainda não produzir arraste, selecione o bloco e use as **setas do teclado** (Shift+setas move 1 px). Em `Áreas (arrastar)`, soltar um container dentro de uma zona cria uma relação **pendente**: só o botão `Aplicar alterações` modifica o Docker.
+
+O CI inclui um teste de interação que executa handlers de pointerdown/move/up, pan, zonas e referência de senhas sem Docker real. Ainda é necessária aceitação manual em Linux Mint com Qt6 e Windows.

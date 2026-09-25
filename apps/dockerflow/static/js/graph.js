@@ -92,8 +92,8 @@
       stage.classList.toggle("df-zone-mode",networkView==="zones");
       $("df-network-view").value=networkView;
       $("df-stage-hint").textContent=networkView==="zones"?
-        "Arraste o container para dentro da rede. Associação pendente até clicar Aplicar.":
-        "Arraste cartões para mover; conectores para ligar. Shift seleciona múltiplos.";
+        "Arraste para a área de rede; clique na paleta para criar blocos. Setas também movem a seleção.":
+        "Arraste cartões para mover; clique na paleta para criar. Setas movem a seleção.";
       try{localStorage.setItem("dockerflow.network.view",networkView);}catch(_){}
       if(rearrange&&networkView==="zones")arrangeZones();else render();
     }
@@ -142,6 +142,16 @@
       if(cmd&&key==="v"){e.preventDefault();pasteSelection();}
       if(cmd&&key==="d"){e.preventDefault();copySelection();pasteSelection();}
       if(cmd&&key==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}
+      if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)&&selectedNodes.size){
+        e.preventDefault();checkpoint();
+        const delta=e.shiftKey?1:20;
+        const [dx,dy]=({ArrowLeft:[-delta,0],ArrowRight:[delta,0],
+          ArrowUp:[0,-delta],ArrowDown:[0,delta]})[e.key];
+        selectedNodes.forEach(id=>{const n=node(id);
+          if(n){n.x=Math.max(0,n.x+dx);n.y=Math.max(0,n.y+dy);}
+        });
+        persistPositions();render();
+      }
       if((e.key==="Delete"||e.key==="Backspace")&&state.selected){e.preventDefault();removeSelected();}
     }
     function graphPoint(clientX,clientY){
@@ -437,7 +447,9 @@
         '</textarea></label>'+
         '<label class="df-field">Variáveis de ambiente (JSON)'+
         '<textarea data-edit="env_text" rows="4" spellcheck="false" placeholder="{ }">'+
-        esc(n.env_text||"{}")+'</textarea></label>';
+        esc(n.env_text||"{}")+'</textarea></label>'+
+        '<button type="button" class="df-btn df-btn-subtle" data-graph-action="configure-secret">'+
+        '🔐 Definir senha deste serviço</button>';
     }
     function containerPayload(n) {
       let environment;
@@ -445,9 +457,14 @@
       catch(_) {throw new Error("JSON de ambiente inválido no container "+n.name);}
       if(!environment || typeof environment!=="object" || Array.isArray(environment))
         throw new Error("Variáveis do container "+n.name+" precisam ser um objeto JSON.");
-      if(Object.values(environment).some(v=>typeof v==="string"&&/\$\{[^}]+\}/.test(v)))
-        throw new Error("Preencha as credenciais pendentes de "+n.name+
-          " antes de criar containers reais. Na IDE Compose, placeholders são resolvidos pelo ambiente.");
+      // Somente referências exatas são resolvidas no backend; jamais
+      // persistir senhas no estado do grafo, histórico ou export JSON.
+      const hasReferences=Object.values(environment).some(v=>
+        typeof v==="string"&&v.includes("\${"));
+      if(hasReferences&&Object.values(environment).some(v=>
+        typeof v==="string"&&v.includes("\${")&&
+        !/^\$\{[A-Za-z_][A-Za-z0-9_]*(?::\?[^}]*)?\}$/.test(v)))
+        throw new Error("Use apenas referências \${VARIAVEL} em "+n.name+".");
       const ports=[],host=String(n.host_port||"").trim(),inside=String(n.container_port||"").trim();
       if(host||inside){
         if(!host||!inside||![host,inside].every(v=>/^\d+$/.test(v)&&Number(v)>0&&Number(v)<65536))
@@ -470,7 +487,8 @@
         throw new Error("Use lista JSON de volumes: source, target e mode opcional ro/rw.");
       return {name:n.name,image:n.image,network:null,ports,volumes:mounts,environment,
               cpus:n.cpus||"",memory_mb:n.memory_mb||"",restart:n.restart||"",
-              read_only:!!n.read_only};
+              read_only:!!n.read_only,
+              secret_project:hasReferences?$("df-project").value.trim():null};
     }
 
     function renderInspector() {
@@ -755,55 +773,11 @@
       deps.toast("Grafo importado. Confirme a ligação real antes de aplicar.");
     }
 
-    // Mouse/pointer: nodes arrastáveis e stage com pan independente.
-    layer.addEventListener("pointerdown",e=>{
-      const port=e.target.closest("[data-port]");
-      if(port){
-        e.preventDefault();e.stopPropagation();
-        wireDrag={id:port.dataset.port,x:e.clientX,y:e.clientY,moved:false};
-        port.setPointerCapture(e.pointerId);
-        return;
-      }
-      const el=e.target.closest(".df-graph-node");
-      if(!el)return;
-      const n=node(el.dataset.id);if(!n)return;
-      if(networkView==="zones"&&n.kind==="network"&&!e.target.closest("[data-zone-handle]"))return;
-      if(e.shiftKey)return; // O click seleciona, sem iniciar arraste.
-      checkpoint();
-      if(!selectedNodes.has(n.id)){selectedNodes.clear();selectedNodes.add(n.id);}
-      state.selected={type:"node",id:n.id};
-      state.activeDrag={id:n.id,clientX:e.clientX,clientY:e.clientY,
-        positions:state.nodes.filter(x=>selectedNodes.has(x.id)).map(x=>({id:x.id,x:x.x,y:x.y}))};
-      stage.setPointerCapture(e.pointerId);renderInspector();
-    });
-    stage.addEventListener("pointermove",e=>{
-      if(wireDrag){
-        if(Math.hypot(e.clientX-wireDrag.x,e.clientY-wireDrag.y)>8)wireDrag.moved=true;
-        if(wireDrag.moved){
-          const from=node(wireDrag.id),end=graphPoint(e.clientX,e.clientY);
-          if(from){
-            svg.querySelector("[data-preview-wire]")?.remove();
-            svg.insertAdjacentHTML("beforeend",
-              '<line data-preview-wire x1="'+(from.x+87)+'" y1="'+(from.y+46)+
-              '" x2="'+end.x+'" y2="'+end.y+'" stroke="#61a47c" stroke-width="2.5"'+
-              ' stroke-dasharray="7 5" pointer-events="none"/>');
-          }
-        }
-        return;
-      }
-      if(!state.activeDrag)return;
-      const drag=state.activeDrag,n=node(drag.id);
-      if(!n)return;
-      const dx=(e.clientX-drag.clientX)/state.zoom,dy=(e.clientY-drag.clientY)/state.zoom;
-      // Um movimento aplicado a todos os blocos selecionados; mantém pointer capture.
-      drag.positions.forEach(p=>{
-        const item=node(p.id);
-        if(!item)return;
-        item.x=Math.max(0,p.x+dx);item.y=Math.max(0,p.y+dy);
-        const element=Array.from(layer.children).find(el=>el.dataset.id===item.id);
-        if(element){element.style.left=item.x+"px";element.style.top=item.y+"px";}
-      });
-      // Caminho SVG atualiza sem remover o DOM ativo.
+    // Um único ciclo de gesto para a WebView: eventos no WINDOW em capture,
+    // independentemente do DOM sob o cursor ou da captura errática do Qt.
+    // Não recriar cartões no movimento. Aplicar a topologia só no botão Aplicar.
+    let activePointer=null,suppressNodeClick=false;
+    function paintMovingEdges(){
       svg.innerHTML=state.edges.map(edge=>{
         const a=node(edge.source),b=node(edge.target);if(!a||!b)return "";
         const x1=a.x+(a.kind==="container"?174:0),y1=a.y+46;
@@ -815,34 +789,136 @@
           '" stroke-width="2.4" stroke-dasharray="'+(edge.persisted?"0":"6 6")+
           '" data-edge="'+esc(edge.id)+'"/>';
       }).join("");
+    }
+    layer.addEventListener("pointerdown",e=>{
+      if(e.pointerType==="mouse"&&e.button!==0)return;
+      const port=e.target.closest("[data-port]");
+      if(port){
+        e.stopPropagation();
+        wireDrag={id:port.dataset.port,x:e.clientX,y:e.clientY,
+          pointerId:e.pointerId,moved:false};
+        activePointer=e.pointerId;
+        return;
+      }
+      const element=e.target.closest(".df-graph-node");
+      if(!element)return;
+      const selected=node(element.dataset.id);
+      if(!selected)return;
+      if(networkView==="zones"&&selected.kind==="network"&&
+          !e.target.closest("[data-zone-handle]"))return;
+      e.stopPropagation();e.preventDefault();
+      if(e.shiftKey){
+        if(selectedNodes.has(selected.id))selectedNodes.delete(selected.id);
+        else selectedNodes.add(selected.id);
+        state.selected=selectedNodes.size?{type:"node",id:[...selectedNodes][0]}:null;
+        render();return;
+      }
+      checkpoint();
+      if(!selectedNodes.has(selected.id)){
+        selectedNodes.clear();selectedNodes.add(selected.id);
+      }
+      state.selected={type:"node",id:selected.id};
+      state.activeDrag={id:selected.id,pointerId:e.pointerId,clientX:e.clientX,
+        clientY:e.clientY,moved:false,positions:state.nodes.filter(n=>
+          selectedNodes.has(n.id)).map(n=>({id:n.id,x:n.x,y:n.y}))};
+      activePointer=e.pointerId;
+      renderInspector();
+      stage.classList.add("df-dragging");
     });
-    stage.addEventListener("pointerup",async e=>{
+    stage.addEventListener("pointerdown",e=>{
+      if(e.pointerType==="mouse"&&e.button!==0)return;
+      if(activePointer!==null||wireDrag||state.activeDrag)return;
+      // #df-world / #df-nodes cobrem a área visível; o pan deve aceitar
+      // cliques nesse overlay, exceto sobre blocos e arestas.
+      if(e.target.closest(".df-graph-node,[data-edge]"))return;
+      e.preventDefault();
+      state.origin={pointerId:e.pointerId,x:e.clientX,y:e.clientY,
+        pX:state.pan.x,pY:state.pan.y};
+      activePointer=e.pointerId;stage.classList.add("df-panning");
+    });
+    function globalMove(e){
+      if(activePointer===null||activePointer!==e.pointerId)return;
+      if(e.cancelable)e.preventDefault();
       if(wireDrag){
-        const start=wireDrag;wireDrag=null;
+        if(Math.hypot(e.clientX-wireDrag.x,e.clientY-wireDrag.y)>5)wireDrag.moved=true;
+        if(!wireDrag.moved)return;
+        const origin=node(wireDrag.id),end=graphPoint(e.clientX,e.clientY);
+        if(origin){
+          svg.querySelector("[data-preview-wire]")?.remove();
+          svg.insertAdjacentHTML("beforeend",'<line data-preview-wire x1="'+(origin.x+87)+
+            '" y1="'+(origin.y+46)+'" x2="'+end.x+'" y2="'+end.y+
+            '" stroke="#61a47c" stroke-width="2.5" stroke-dasharray="7 5" pointer-events="none"/>');
+        }
+        return;
+      }
+      if(state.activeDrag){
+        const drag=state.activeDrag;
+        if(Math.hypot(e.clientX-drag.clientX,e.clientY-drag.clientY)>3)
+          drag.moved=true;
+        if(!drag.moved)return;
+        const dx=(e.clientX-drag.clientX)/state.zoom,
+          dy=(e.clientY-drag.clientY)/state.zoom;
+        drag.positions.forEach(p=>{
+          const item=node(p.id);if(!item)return;
+          item.x=Math.max(0,p.x+dx);item.y=Math.max(0,p.y+dy);
+          const element=Array.from(layer.children).find(el=>el.dataset.id===item.id);
+          if(element){element.style.left=item.x+"px";element.style.top=item.y+"px";}
+        });
+        paintMovingEdges();return;
+      }
+      if(state.origin){
+        state.pan.x=state.origin.pX+e.clientX-state.origin.x;
+        state.pan.y=state.origin.pY+e.clientY-state.origin.y;
+        transform();
+      }
+    }
+    async function globalUp(e){
+      if(activePointer===null||activePointer!==e.pointerId)return;
+      activePointer=null;stage.classList.remove("df-dragging","df-panning");
+      if(wireDrag){
+        const previous=wireDrag;wireDrag=null;
         svg.querySelector("[data-preview-wire]")?.remove();
-        if(start.moved){
+        if(previous.moved){
           const dest=document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-port]");
           suppressPortClick=true;
-          setTimeout(()=>{suppressPortClick=false;},100);
-          if(dest&&dest.dataset.port!==start.id)await connect(start.id,dest.dataset.port);
-          else deps.toast("Solte o cabo sobre o conector de outro bloco.");
+          setTimeout(()=>{suppressPortClick=false;},120);
+          if(dest&&dest.dataset.port!==previous.id)
+            await connect(previous.id,dest.dataset.port);
+          else deps.toast("Solte o cabo no conector de outro bloco.");
           render();
         }
         return;
       }
       if(state.activeDrag){
-        attachByDrop(state.activeDrag.positions.map(p=>p.id),e.clientX,e.clientY);
-        if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);
-        if(snapEnabled)state.activeDrag.positions.forEach(p=>{
-          const item=node(p.id);if(item){item.x=snap(item.x);item.y=snap(item.y);}
-        });
-        state.activeDrag=null;persistPositions();render();
+        const drag=state.activeDrag;state.activeDrag=null;
+        if(drag.moved){
+          attachByDrop(drag.positions.map(p=>p.id),e.clientX,e.clientY);
+          if(snapEnabled)drag.positions.forEach(p=>{
+            const item=node(p.id);if(item){item.x=snap(item.x);item.y=snap(item.y);}
+          });
+          persistPositions();
+          suppressNodeClick=true;
+          setTimeout(()=>{suppressNodeClick=false;},150);
+        }
+        render();return;
       }
-    });
-    stage.addEventListener("pointercancel",()=>{
-      wireDrag=null;svg.querySelector("[data-preview-wire]")?.remove();
-      state.activeDrag=null;
-    });
+      if(state.origin){state.origin=null;persistPositions();}
+    }
+    function globalCancel(){
+      if(state.activeDrag){
+        state.activeDrag.positions.forEach(p=>{
+          const item=node(p.id);if(item){item.x=p.x;item.y=p.y;}
+        });
+      }
+      state.activeDrag=null;state.origin=null;wireDrag=null;activePointer=null;
+      stage.classList.remove("df-dragging","df-panning");
+      svg.querySelector("[data-preview-wire]")?.remove();
+      render();
+    }
+    window.addEventListener("pointermove",globalMove,true);
+    window.addEventListener("pointerup",globalUp,true);
+    window.addEventListener("pointercancel",globalCancel,true);
+    window.addEventListener("blur",globalCancel);
     layer.addEventListener("click",async e=>{
       const port=e.target.closest("[data-port]");
       if(port){
@@ -850,44 +926,23 @@
         if(suppressPortClick)return;
         const id=port.dataset.port;
         if(!state.linking){state.linking=id;render();}
-        else {const a=state.linking;state.linking=null;await connect(a,id);render();}
+        else{
+          const a=state.linking;state.linking=null;
+          await connect(a,id);render();
+        }
         return;
       }
-      const el=e.target.closest("[data-id]");
-      if(el){
-        const id=el.dataset.id;
-        if(e.shiftKey){if(selectedNodes.has(id))selectedNodes.delete(id);else selectedNodes.add(id);}
-        else if(!selectedNodes.has(id)){selectedNodes.clear();selectedNodes.add(id);}
-        state.selected=selectedNodes.size?{type:"node",id:[...selectedNodes][0]}:null;
-        render();
-      }
+      // Seleção de mouse já ocorreu no pointerdown. Ativar click somente
+      // para Enter/espaço no teclado para não duplicar Shift+seleção.
+      if(suppressNodeClick||e.detail!==0)return;
+      const item=e.target.closest("[data-id]");
+      if(item){selectedNodes.clear();selectedNodes.add(item.dataset.id);
+        state.selected={type:"node",id:item.dataset.id};render();}
     });
     svg.addEventListener("click",e=>{
       const path=e.target.closest("[data-edge]");
       if(path){selectedNodes.clear();state.selected={type:"edge",id:path.dataset.edge};render();}
     });
-    stage.addEventListener("pointerdown",e=>{
-      // df-world/df-nodes cobrem toda a área visível. Exigir target===stage
-      // bloqueava a ferramenta "mãozinha" em WebView. Não iniciar pan em
-      // cartões nem conexões; no corpo vazio de uma zona, permitir pan.
-      const interactive=e.target.closest(".df-graph-node");
-      if(e.target.closest("[data-edge]") ||
-         (interactive&&!(networkView==="zones"&&
-           interactive.classList.contains("df-network-zone")&&
-           !e.target.closest("[data-zone-handle]"))))return;
-      state.origin={x:e.clientX,y:e.clientY,pX:state.pan.x,pY:state.pan.y};
-      stage.setPointerCapture(e.pointerId);
-    });
-    stage.addEventListener("pointermove",e=>{
-      if(!state.origin)return;
-      state.pan.x=state.origin.pX+(e.clientX-state.origin.x);
-      state.pan.y=state.origin.pY+(e.clientY-state.origin.y);
-      transform();
-    });
-    stage.addEventListener("pointerup",e=>{
-      if(state.origin){state.origin=null;if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);}
-    });
-    stage.addEventListener("pointercancel",()=>{state.origin=null;});
     stage.addEventListener("wheel",e=>{
       e.preventDefault();const rect=stage.getBoundingClientRect();
       const x=e.clientX-rect.left,y=e.clientY-rect.top;
@@ -916,7 +971,12 @@
     document.querySelectorAll(".df-palette-item").forEach(el=>{
       el.addEventListener("dragstart",e=>e.dataTransfer.setData("application/dockerflow-node",el.dataset.kind));
       // Também funciona no WebView sem suporte consistente ao dragstart.
-      el.addEventListener("dblclick",()=>addDraft(el.dataset.kind,150+Math.random()*130,90+Math.random()*160));
+      el.addEventListener("click",()=>addDraft(el.dataset.kind,150+Math.random()*130,90+Math.random()*160));
+      el.addEventListener("keydown",e=>{
+        if(e.key==="Enter"||e.key===" "){
+          e.preventDefault();addDraft(el.dataset.kind,150,110);
+        }
+      });
     });
     inspector.addEventListener("change",e=>{
       const n=node(state.selected?.id);
@@ -930,12 +990,60 @@
           n.env_text=JSON.stringify(preset.env,null,2);render();}
       }
     });
+    async function configureSecret(n){
+      if(n.existing){
+        deps.navigate("ide");
+        return deps.toast("Containers existentes devem ser recriados para receber novas senhas. Configure seu Compose.");
+      }
+      const presets=[
+        ["postgres","POSTGRES_PASSWORD","POSTGRES_PASSWORD"],
+        ["mysql","MYSQL_ROOT_PASSWORD","MYSQL_ROOT_PASSWORD"],
+        ["mariadb","MARIADB_ROOT_PASSWORD","MARIADB_ROOT_PASSWORD"],
+        ["mongo","MONGO_INITDB_ROOT_PASSWORD","MONGO_PASSWORD"],
+        ["grafana","GF_SECURITY_ADMIN_PASSWORD","GRAFANA_PASSWORD"],
+        ["rabbitmq","RABBITMQ_DEFAULT_PASS","RABBIT_PASSWORD"]
+      ];
+      const hint=presets.find(([prefix])=>String(n.image||"").toLowerCase().includes(prefix));
+      let env;
+      try {env=JSON.parse(n.env_text||"{}");}
+      catch(_){return deps.toast("Corrija o JSON do ambiente antes de definir credenciais.",true);}
+      const currentKey=Object.keys(env).find(key=>/PASSWORD|SECRET|TOKEN/i.test(key));
+      const key=currentKey||hint?.[1]||"APP_PASSWORD";
+      const match=String(env[key]||"").match(/^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/);
+      const project=$("df-project").value.trim();
+      if(!/^[a-z][a-z0-9_-]{0,39}$/.test(project))
+        return deps.toast("Configure primeiro o nome do projeto na Compose IDE.",true);
+      const form=await deps.ask({
+        title:"Credencial do serviço "+n.name,
+        description:"O valor fica no cofre do projeto "+project+
+          "; o diagrama guarda apenas \${VARIAVEL}. A alteração real ocorre ao clicar Aplicar.",
+        fields:[{key:"env",label:"Variável esperada pela imagem",value:key},
+          {key:"secret",label:"Nome no cofre do projeto",value:match?.[1]||hint?.[2]||key},
+          {key:"password",label:"Senha/segredo",type:"password",value:""}],
+        confirmText:"Salvar credencial"
+      });
+      if(!form)return;
+      const valid=value=>/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(value);
+      if(!valid(form.env)||!valid(form.secret)||!form.password)
+        return deps.toast("Informe uma senha e dois nomes de variável válidos.",true);
+      try{
+        await deps.api("/compose/variables/set","POST",{
+          name:project,key:form.secret,value:form.password});
+        form.password="";
+        checkpoint();
+        env[form.env]="\${"+form.secret+"}";
+        n.env_text=JSON.stringify(env,null,2);
+        render();
+        deps.toast("Senha cadastrada no projeto "+project+". Somente a referência está no desenho.");
+      }catch(err){form.password="";deps.toast("Não foi possível salvar a credencial: "+err.message,true);}
+    }
     inspector.addEventListener("click",async e=>{
       const action=e.target.closest("[data-graph-action]")?.dataset.graphAction;
       if(!action)return;
       const n=node(state.selected?.id);
       if(action==="remove-edge"||action==="delete-node")return removeSelected();
       if(action==="duplicate"){copySelection();pasteSelection();return;}
+      if(action==="configure-secret"&&n){await configureSecret(n);return;}
       if(action==="terminal"&&n){deps.openTerminal(n.dockerId);}
       if(action==="diagnose"&&n){
         const others=state.nodes.filter(item=>item.kind==="container"&&item.existing&&item.id!==n.id);
