@@ -8,7 +8,7 @@
   const app = {mounted:false,page:"graph",overview:{online:false},graph:null,
     terminal:null,pollTimer:null,editorMode:"compose",containers:[],networks:[]};
   const terminalHistory=[];let terminalHistoryCursor=0;
-  let adminPreview=null;
+  let adminPreview=null,volumePreview=null,variableTimer=null;
   let highlightedPreview=false;
   const titles={overview:"Visão geral",graph:"Laboratório visual",
     containers:"Containers",images:"Imagens",networks:"Redes",volumes:"Volumes",tasks:"Tarefas",monitor:"Monitoramento",audit:"Auditoria",logs:"Logs",ide:"Compose IDE",terminal:"Terminal Docker",admin:"Administração"};
@@ -129,10 +129,10 @@
     if(page==="audit")loadAudit();
     if(page==="logs")loadLogContainers();
     if(page==="terminal")refreshTerminalList();
-    if(page==="ide"){listProjects();refreshEditorVisual();}
-    if(page==="admin")loadAdminPreview();
+    if(page==="ide"){listProjects();refreshEditorVisual();scheduleVariables();}
+    if(page==="admin"){loadAdminPreview();loadVolumePreview();}
   }
-  function setYaml(text){$("df-yaml").value=text;switchEditor("compose");}
+  function setYaml(text){$("df-yaml").value=text;switchEditor("compose");scheduleVariables();}
   async function loadTemplateCatalog(){
     try{
       const templates=await api("/templates");
@@ -217,6 +217,49 @@
       $("df-admin-preview").textContent=JSON.stringify(result,null,2);
     }catch(err){toast("Administração: "+err.message,true);}
     finally{await loadAdminPreview();await refresh();}
+  }
+  async function loadVolumePreview(){
+    volumePreview=null;
+    $("df-admin-volumes-purge").disabled=true;
+    $("df-admin-volumes-preview").textContent="Consultando todos os volumes do Engine local...";
+    try{
+      const response=await api("/admin/volumes/preview");
+      volumePreview=response;
+      $("df-admin-volumes-preview").innerHTML='<p><strong>'+esc(response.count)+
+        ' volumes</strong> encontrados; '+esc(response.in_use)+' em uso.'+
+        (response.in_use?' Remova ou desconecte os respectivos containers primeiro.':'')+
+        '</p><div class="df-admin-container-list">'+response.volumes.map(v=>
+          '<div><code>'+esc(v.name)+'</code> · '+esc(v.driver)+
+          (v.containers.length?' · usado por '+esc(v.containers.join(", ")):' · sem referências conhecidas')+
+          '</div>').join("")+'</div>'+
+        (response.truncated?'<p>Lista abreviada; a operação inclui todos os volumes da prévia.</p>':'');
+      $("df-admin-volumes-purge").disabled=!response.count||!!response.in_use;
+    }catch(err){
+      $("df-admin-volumes-preview").textContent="Prévia indisponível: "+err.message;
+    }
+  }
+  async function removeAllVolumes(){
+    if(!volumePreview?.count||volumePreview.in_use){
+      toast("Atualize a prévia e libere todos os volumes em uso antes de continuar.",true);return;
+    }
+    const previous=volumePreview;volumePreview=null;
+    $("df-admin-volumes-purge").disabled=true;
+    const values=await ask({title:"APAGAR TODOS OS VOLUMES?",
+      description:"Exclusão DEFINITIVA dos dados de TODOS os "+previous.count+
+        " volumes locais, incluindo volumes anônimos. Pode afetar projetos externos e drivers remotos. "+
+        "Sem backup ou restauração automática. Digite APAGAR VOLUMES; depois confirme no polkit do Linux.",
+      fields:[{key:"confirmation",label:"Digite APAGAR VOLUMES",value:""}],
+      confirmText:"Solicitar autorização do sistema"});
+    if(!values||values.confirmation!=="APAGAR VOLUMES"){
+      if(values)toast("A frase deve ser exatamente APAGAR VOLUMES.",true);
+      await loadVolumePreview();return;
+    }
+    try{
+      const result=await api("/admin/volumes/remove-all","POST",
+        {fingerprint:previous.fingerprint,confirmation:values.confirmation});
+      toast(result.message||"Verifique o estado dos volumes.",!result.ok);
+    }catch(err){toast("Volumes: "+err.message,true);}
+    finally{await loadVolumePreview();await refresh();}
   }
   async function loadContainers(){
     try {
@@ -515,6 +558,56 @@
         data.map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join("");
     }catch(err){toast(err.message,true);}
   }
+  async function loadVariables(){
+    const project=$("df-project").value.trim();
+    const root=$("df-env-list");
+    if(!/^[a-z][a-z0-9_-]{0,39}$/.test(project)){
+      root.textContent="Use um nome válido de projeto para gerenciar suas variáveis.";return;
+    }
+    try{
+      const state=await api("/compose/variables/status","POST",
+        {name:project,content:$("df-yaml").value});
+      const rows=state.variables;
+      root.innerHTML=rows.length?rows.map(variable=>{
+        const label=variable.saved?"Salva":variable.from_system?"Sistema":"Pendente";
+        return '<div class="df-env-row"><span>'+esc(variable.name)+
+          '</span><span class="df-env-badge '+(!variable.saved&&!variable.from_system?"missing":"")+
+          '">'+label+'</span>'+
+          '<button type="button" class="df-mini-btn" data-env-select="'+esc(variable.name)+
+          '" title="Editar valor">Editar</button>'+
+          (variable.saved?'<button type="button" class="df-mini-btn danger" data-env-delete="'+
+            esc(variable.name)+'" title="Excluir variável">×</button>':"")+'</div>';
+      }).join(""):'<p>Nenhuma variável definida. Referências no YAML aparecerão aqui.</p>';
+    }catch(err){root.textContent="Variáveis indisponíveis: "+err.message;}
+  }
+  function scheduleVariables(){
+    if(variableTimer)clearTimeout(variableTimer);
+    variableTimer=setTimeout(()=>{variableTimer=null;loadVariables();},450);
+  }
+  async function saveVariable(){
+    const project=$("df-project").value.trim(),key=$("df-env-key").value.trim(),
+      entry=$("df-env-value"),value=entry.value;
+    if(!/^[a-z][a-z0-9_-]{0,39}$/.test(project))
+      return toast("Defina um nome de projeto válido antes de salvar.",true);
+    if(!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key))
+      return toast("Nome de variável inválido.",true);
+    if(!value)return toast("Digite a senha/valor antes de salvar.",true);
+    // Limpar a senha da interface em todos os caminhos.
+    entry.value="";entry.type="password";$("df-env-reveal").checked=false;
+    try{
+      await api("/compose/variables/set","POST",{name:project,key,value});
+      toast("Variável "+key+" salva para este projeto. O valor não será mostrado novamente.");
+      await loadVariables();
+    }catch(err){toast(err.message,true);}
+  }
+  async function deleteVariable(key){
+    if(!(await confirmed("Excluir variável "+key+"?",
+      "A exclusão remove o valor salvo deste projeto, não modifica o YAML.","Excluir")))return;
+    try{
+      await api("/compose/variables/delete","POST",{name:$("df-project").value.trim(),key});
+      await loadVariables();toast("Variável removida.");
+    }catch(err){toast(err.message,true);}
+  }
   async function composeAction(action){
     const name=$("df-project").value.trim(),content=$("df-yaml").value;
     if(action==="down"&&!(await confirmed("Remover pilha Compose?",
@@ -537,7 +630,7 @@
     if(!name)return toast("Selecione um projeto salvo",true);
     try{const result=await api("/compose/load","POST",{name});
       $("df-project").value=name;setYaml(result.content);
-      $("df-dockerfile").value=result.dockerfile||"";toast("Projeto carregado");}
+      $("df-dockerfile").value=result.dockerfile||"";scheduleVariables();toast("Projeto carregado");}
     catch(err){toast(err.message,true);}
   }
 
@@ -659,6 +752,9 @@
   async function closeTerminal(){
     const sid=app.terminal;
     if(app.pollTimer)clearInterval(app.pollTimer);
+    if(variableTimer)clearTimeout(variableTimer);
+    variableTimer=null;
+    $("df-env-value").value="";
     app.pollTimer=null;app.terminal=null;
     $("df-terminal-input").disabled=true;
     $("df-terminal-state").textContent="sem sessão";
@@ -672,6 +768,22 @@
     $("df-new-container").onclick=createContainer;
     $("df-admin-scan").onclick=loadAdminPreview;
     $("df-admin-purge").onclick=removeAllAdmin;
+    $("df-admin-volumes-scan").onclick=loadVolumePreview;
+    $("df-admin-volumes-purge").onclick=removeAllVolumes;
+    $("df-env-refresh").onclick=loadVariables;
+    $("df-project").addEventListener("change",scheduleVariables);
+    $("df-yaml").addEventListener("input",scheduleVariables);
+    $("df-env-save").onclick=saveVariable;
+    $("df-env-reveal").onchange=e=>$("df-env-value").type=e.target.checked?"text":"password";
+    $("df-env-list").addEventListener("click",event=>{
+      const select=event.target.closest("[data-env-select]");
+      const remove=event.target.closest("[data-env-delete]");
+      if(select){
+        $("df-env-key").value=select.dataset.envSelect;
+        $("df-env-value").focus();
+      }
+      if(remove)deleteVariable(remove.dataset.envDelete);
+    });
     $("df-image-pull").onclick=pullImage;
     $("df-volume-new").onclick=newVolume;
     $("df-network-create").onclick=createNetwork;
@@ -844,6 +956,7 @@
     app.mounted=true;setupAppearance();bind();navigate("graph");
     app.graph=window.DockerGraph({api,toast,ask,setYaml,navigate,refresh,download,openTerminal,showOutput});
     await loadTemplateCatalog();
+    scheduleVariables();
     await refresh();
     if(app.overview.online){
       try{await app.graph.importDocker(true);}
