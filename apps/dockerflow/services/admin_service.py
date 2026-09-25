@@ -129,5 +129,98 @@ class AdminService:
         finally:
             _GATE.release()
 
+    def _list_volumes(self):
+        """Todos os volumes nomeados/anônimos do daemon LOCAL, com uso real."""
+        self._check_local()
+        client = self._factory()
+        try:
+            references = {}
+            for container in client.containers.list(all=True):
+                for mount in container.attrs.get("Mounts") or []:
+                    if mount.get("Type") == "volume" and mount.get("Name"):
+                        references.setdefault(mount["Name"], set()).add(str(container.name)[:120])
+            rows = []
+            for volume in client.volumes.list():
+                name = str(volume.name)
+                if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}", name):
+                    raise ValueError("Volume com nome inesperado; remoção recusada.")
+                driver = str(volume.attrs.get("Driver", ""))[:80]
+                rows.append((name, driver, tuple(sorted(references.get(name, ())))))
+            if len(rows) > 1000:
+                raise ValueError("Mais de 1000 volumes; remova-os em lotes manuais.")
+            return sorted(rows)
+        finally:
+            client.close()
+
+    def _fingerprint_volumes(self, rows):
+        # Domínios separados: uma prévia de containers nunca autoriza volumes.
+        snapshot = "\n".join(name + "\t" + driver + "\t" + ",".join(uses)
+                             for name, driver, uses in rows)
+        return hmac.new(TOKEN.encode("utf-8"), ("volumes\0" + snapshot).encode("utf-8"),
+                        hashlib.sha256).hexdigest()
+
+    def preview_volumes(self):
+        rows = self._list_volumes()
+        busy = [name for name, _, used in rows if used]
+        return {
+            "count": len(rows),
+            "volumes": [{"name": name, "driver": driver, "containers": list(uses)}
+                        for name, driver, uses in rows[:100]],
+            "truncated": len(rows) > 100,
+            "in_use": len(busy),
+            "fingerprint": self._fingerprint_volumes(rows),
+            "auth": "polkit (pkexec)",
+            "warning": ("Exclui todos os volumes do Engine LOCAL (inclusive anônimos) "
+                        "e seus dados permanentemente. Volumes usados por containers "
+                        "existentes devem ser liberados ANTES, sem remoção automática "
+                        "de containers. Drivers externos podem afetar armazenamento remoto."),
+        }
+
+    def remove_all_volumes(self, fingerprint, confirmation):
+        if confirmation != "APAGAR VOLUMES" or not isinstance(fingerprint, str) or len(fingerprint) != 64:
+            raise ValueError("Digite APAGAR VOLUMES e use a prévia atualizada.")
+        if not _GATE.acquire(blocking=False):
+            raise ValueError("Outra operação administrativa está em andamento.")
+        try:
+            rows = self._list_volumes()
+            if not hmac.compare_digest(self._fingerprint_volumes(rows), fingerprint):
+                raise ValueError("A lista/associação de volumes mudou. Atualize a prévia.")
+            if any(used for _, _, used in rows):
+                raise ValueError("Existem volumes em uso. Remova/desconecte os containers "
+                                 "antes; nenhum container será apagado automaticamente.")
+            if not rows:
+                return {"ok": True, "removed": 0, "remaining": 0,
+                        "message": "Não há volumes para remover."}
+            pkexec = self._trusted_binary("pkexec", {"/usr/bin/pkexec", "/bin/pkexec"})
+            docker_bin = self._trusted_binary("docker", {"/usr/bin/docker", "/usr/local/bin/docker"})
+            # Sem --force: caso um container novo passe a usar um volume
+            # entre a prévia e o comando, o Docker deve bloquear sua remoção.
+            args = [pkexec, docker_bin, "--host", "unix://" + self._socket,
+                    "volume", "rm", "--"]
+            args.extend(name for name, _, _ in rows)
+            try:
+                outcome = self._runner(args, capture_output=True, text=True,
+                                       timeout=180, check=False)
+            except (subprocess.TimeoutExpired, OSError):
+                return {"ok": False, "removed": None, "remaining": None,
+                        "message": "Autorização indisponível ou expirada. "
+                                   "Atualize a prévia para verificar o resultado."}
+            try:
+                left = self._list_volumes()
+            except Exception:
+                return {"ok": False, "removed": None, "remaining": None,
+                        "message": "Falha na releitura do Docker; consulte o estado real."}
+            original = {name for name, _, _ in rows}
+            remaining_names = {name for name, _, _ in left}
+            removed = len(original - remaining_names)
+            success = outcome.returncode == 0 and not original & remaining_names
+            return {"ok": success, "removed": removed, "remaining": len(left),
+                    "message": ("Volumes removidos; a exclusão é irreversível." if success else
+                                "Operação negada ou parcial. Atualize a prévia e revise "
+                                "volumes em uso antes de repetir.")}
+        finally:
+            _GATE.release()
+
+
 
 admin_service = AdminService()

@@ -48,9 +48,9 @@
       </div>
       <div class="df-studio-grid">
         <aside class="df-palette">
-          <div class="df-palette-intro"><strong>Elementos</strong><small>Arraste para a tela</small></div>
-          <div class="df-palette-item" draggable="true" data-kind="container"><span class="df-shape df-shape-container">⬡</span><div><b>Container</b><small>Serviço / imagem</small></div><span>⋮⋮</span></div>
-          <div class="df-palette-item" draggable="true" data-kind="network"><span class="df-shape df-shape-network">⌘</span><div><b>Rede bridge</b><small>Conectividade Docker</small></div><span>⋮⋮</span></div>
+          <div class="df-palette-intro"><strong>Elementos</strong><small>Arraste ou clique para adicionar</small></div>
+          <div class="df-palette-item" draggable="true" role="button" tabindex="0" aria-label="Adicionar container ao laboratório" data-kind="container"><span class="df-shape df-shape-container">⬡</span><div><b>Container</b><small>Serviço / imagem</small></div><span>⋮⋮</span></div>
+          <div class="df-palette-item" draggable="true" role="button" tabindex="0" aria-label="Adicionar rede ao laboratório" data-kind="network"><span class="df-shape df-shape-network">⌘</span><div><b>Rede bridge</b><small>Conectividade Docker</small></div><span>⋮⋮</span></div>
           <div class="df-palette-note"><b>Como conectar?</b><p>Grafo: ligue os conectores. Redes como áreas: solte o container dentro do quadrado da rede. A conexão só será criada no Docker ao clicar Aplicar.</p></div>
           <div class="df-palette-foot"><label class="df-field">Topologia pronta<select id="df-template"><option value="">Escolher modelo...</option><option value="web-db">Web + Banco + Redis</option><option value="reverse-proxy">Proxy + APIs</option><option value="microservices">Microsserviços</option></select></label><button class="df-btn df-btn-subtle" id="df-template-load">Inserir template</button><button class="df-btn df-btn-subtle" id="df-import-file">↑ Importar JSON</button><input type="file" id="df-import-input" accept=".json,application/json" hidden></div>
         </aside>
@@ -123,6 +123,22 @@
           <div id="df-admin-preview" aria-live="polite" class="df-admin-result">Faça uma prévia para habilitar a operação.</div>
         </div>
       </div>
+      <div class="df-card df-admin-card">
+        <div class="df-card-header"><strong>Zona de risco · Remover TODOS os volumes</strong></div>
+        <div class="df-admin-content">
+          <p>Apaga permanentemente dados de TODOS os volumes locais, incluindo volumes anônimos.
+            A exclusão pode afetar outros projetos e até armazenamento remoto de drivers externos.
+            Faça backup antes de prosseguir.</p>
+          <p>Volumes em uso por qualquer container, inclusive parado, bloqueiam esta operação.
+            Se necessário, remova os containers primeiro usando a opção separada acima.
+            O DockerFlow nunca removerá containers automaticamente nesta ação.</p>
+          <p>Confirmação independente: digite <strong>APAGAR VOLUMES</strong> e aprove a janela
+            de autorização do Linux via polkit. Nenhuma senha de administrador entra no DockerFlow.</p>
+          <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-admin-volumes-scan">↻ Verificar volumes</button>
+            <button class="df-btn df-btn-warn" id="df-admin-volumes-purge" disabled>Apagar todos os volumes · autorização SO</button></div>
+          <div id="df-admin-volumes-preview" aria-live="polite" class="df-admin-result">Verifique os volumes antes de habilitar esta operação.</div>
+        </div>
+      </div>
     </section>
 
     <section class="df-page df-ide-page" data-content="ide" hidden>
@@ -137,7 +153,16 @@ networks: {}
 WORKDIR /app
 COPY . .
 CMD ["python", "--version"]
-</textarea><pre id="df-editor-preview" aria-label="Prévia destacada do código, somente leitura" hidden></pre></div></div><aside class="df-ide-side"><h3>Executar projeto</h3><p>O YAML é salvo na pasta de dados do aplicativo. Confira antes de subir ou remover serviços.</p><label class="df-field">Templates YAML<select id="df-ide-template"><option value="">Carregando...</option></select></label><button class="df-btn df-btn-subtle df-wide" id="df-ide-template-load">Inserir template YAML</button><label class="df-field">Nome do projeto<input id="df-project" value="dockerflow" pattern="[a-z][a-z0-9_-]*"></label><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-validate">✓ Validar YAML</button><button class="df-btn df-btn-primary df-wide df-compose-action" id="df-compose-up">▶ docker compose up</button><button class="df-btn df-btn-warn df-wide df-compose-action" id="df-compose-down">■ docker compose down</button><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-save">◫ Salvar projeto</button>
+</textarea><pre id="df-editor-preview" aria-label="Prévia destacada do código, somente leitura" hidden></pre></div></div><aside class="df-ide-side"><h3>Executar projeto</h3><p>O YAML é salvo na pasta de dados do aplicativo. Confira antes de subir ou remover serviços.</p><label class="df-field">Templates YAML<select id="df-ide-template"><option value="">Carregando...</option></select></label><button class="df-btn df-btn-subtle df-wide" id="df-ide-template-load">Inserir template YAML</button><label class="df-field">Nome do projeto<input id="df-project" value="dockerflow" pattern="[a-z][a-z0-9_-]*"></label>
+      <section class="df-env-manager" aria-label="Variáveis e senhas do projeto">
+        <div class="df-env-title"><strong>Variáveis e senhas</strong><button type="button" class="df-mini-btn" id="df-env-refresh" title="Ler nomes das variáveis do YAML">↻</button></div>
+        <p>Senhas ficam em arquivo privado deste projeto (0600 no Linux), fora do YAML e do Git. Não existe recuperação visual do valor salvo.</p>
+        <div id="df-env-list" class="df-env-list" aria-live="polite">Verifique as variáveis para começar.</div>
+        <label class="df-field">Variável (ex.: GRAFANA_PASSWORD)<input id="df-env-key" autocomplete="off" spellcheck="false" placeholder="GRAFANA_PASSWORD"></label>
+        <label class="df-field">Senha ou valor<input id="df-env-value" type="password" autocomplete="new-password" spellcheck="false" placeholder="Digite o valor; ele não será mostrado depois"></label>
+        <label class="df-env-reveal"><input id="df-env-reveal" type="checkbox"> Mostrar enquanto digita</label>
+        <button type="button" id="df-env-save" class="df-btn df-btn-subtle df-wide">Salvar variável neste projeto</button>
+      </section><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-validate">✓ Validar YAML</button><button class="df-btn df-btn-primary df-wide df-compose-action" id="df-compose-up">▶ docker compose up</button><button class="df-btn df-btn-warn df-wide df-compose-action" id="df-compose-down">■ docker compose down</button><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-save">◫ Salvar projeto</button>
       <div class="df-dockerfile-actions" hidden><label class="df-field">Template de Dockerfile<select id="df-dockerfile-snippet"><option value="python">Python</option><option value="node">Node.js</option><option value="nginx">Nginx</option><option value="go">Go</option><option value="postgres">PostgreSQL</option></select></label><button class="df-btn df-btn-subtle df-wide" id="df-dockerfile-template">Inserir template</button>
         <label class="df-field">Tag para docker build<input id="df-dockerfile-tag" value="minha-imagem:dev"></label>
         <button class="df-btn df-btn-primary df-wide" id="df-dockerfile-build">⬡ Build Dockerfile</button>
