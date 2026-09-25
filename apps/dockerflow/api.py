@@ -49,6 +49,37 @@ def templates_compose(context):
     return safe(template_catalog.render_template, body(context).get("id"))
 
 
+@api.post("/compose/variables/status")
+def compose_variables_status(context):
+    data = body(context)
+    return safe(compose.variables_status, data.get("name"), data.get("content", ""))
+
+
+@api.post("/compose/variables/set")
+def compose_variables_set(context):
+    data = body(context)
+    return safe(compose.set_variable, data.get("name"), data.get("key"), data.get("value"))
+
+
+@api.post("/compose/variables/delete")
+def compose_variables_delete(context):
+    data = body(context)
+    return safe(compose.delete_variable, data.get("name"), data.get("key"))
+
+
+@api.get("/admin/volumes/preview")
+def admin_volumes_preview():
+    return safe(admin_service.preview_volumes)
+
+
+@api.post("/admin/volumes/remove-all")
+def admin_volumes_remove_all(context):
+    data = body(context)
+    return safe(tasks.submit, "Admin: exclusão de volumes com polkit",
+                admin_service.remove_all_volumes, data.get("fingerprint"),
+                data.get("confirmation"))
+
+
 @api.get("/admin/containers/preview")
 def admin_container_preview():
     return safe(admin_service.preview)
