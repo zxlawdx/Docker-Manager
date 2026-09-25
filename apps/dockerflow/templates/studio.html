@@ -12,7 +12,7 @@
       <button class="df-nav-item" data-page="audit"><span class="df-icon">♢</span> Auditoria</button>
       <button class="df-nav-item" data-page="monitor"><span class="df-icon">▥</span> Monitoramento</button>
       <button class="df-nav-item" data-page="networks"><span class="df-icon">◉</span> Redes</button>
-      <button class="df-nav-item" data-page="volumes"><span class="df-icon">◈</span> Volumes</button>
+      <button class="df-nav-item" data-page="volumes"><span class="df-icon">◈</span> Volumes</button><button class="df-nav-item" data-page="admin"><span class="df-icon">♙</span> Administração <em>RISCO</em></button>
     </nav>
     <div class="df-rail-group df-rail-gap">DESENVOLVIMENTO</div>
     <nav>
@@ -30,7 +30,7 @@
       <div class="df-breadcrumb"><span>Workspace</span><span class="df-slash">/</span><b id="df-breadcrumb-current">Laboratório visual</b></div>
       <div class="df-top-actions">
         <span class="df-top-state"><i id="df-engine-dot"></i><span id="df-engine-status">Aguardando Docker</span></span>
-        <button class="df-btn df-btn-subtle" id="df-refresh">↻ Atualizar</button>
+        <button class="df-btn df-btn-subtle df-theme-toggle" id="df-theme-toggle" type="button" aria-label="Alternar aparência" title="Aparência automática / clara / escura">◐ <span id="df-theme-label">Sistema</span></button><button class="df-btn df-btn-subtle" id="df-refresh">↻ Atualizar</button>
         <button class="df-avatar" title="Aplicação local">DF</button>
       </div>
     </header>
@@ -44,24 +44,24 @@
     <section class="df-page df-graph-page visible" data-content="graph">
       <div class="df-graph-header">
         <div><p class="df-eyebrow">DOCKER STUDIO / GRAPH</p><h1>Laboratório visual <sup>BETA</sup></h1><p>Um espaço para conectar serviços, redes e ideias.</p></div>
-        <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-graph-demo">◇ Exemplo</button><button class="df-btn df-btn-subtle" id="df-graph-load">↻ Importar Docker</button><button class="df-btn df-btn-subtle" id="df-graph-save">↓ JSON</button><button class="df-btn df-btn-subtle" id="df-diagram-save">◫ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-open">↑ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-diff">⇄ Comparar</button><button class="df-btn df-btn-subtle" id="df-deploy-preview">◉ Pré-visualizar</button><button class="df-btn df-btn-primary" id="df-graph-apply">Aplicar alterações <span id="df-pending-count">0</span></button></div>
+        <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-graph-demo">◇ Exemplo</button><button class="df-btn df-btn-subtle" id="df-graph-load">↻ Importar Docker</button><button class="df-btn df-btn-subtle" id="df-graph-relations" title="Trazer containers, redes e suas associações">◉ Trazer todas as relações</button><button class="df-btn df-btn-subtle" id="df-graph-save">↓ JSON</button><button class="df-btn df-btn-subtle" id="df-diagram-save">◫ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-open">↑ Projeto</button><button class="df-btn df-btn-subtle" id="df-diagram-diff">⇄ Comparar</button><button class="df-btn df-btn-subtle" id="df-deploy-preview">◉ Pré-visualizar</button><button class="df-btn df-btn-primary" id="df-graph-apply">Aplicar alterações <span id="df-pending-count">0</span></button></div>
       </div>
       <div class="df-studio-grid">
         <aside class="df-palette">
           <div class="df-palette-intro"><strong>Elementos</strong><small>Arraste para a tela</small></div>
           <div class="df-palette-item" draggable="true" data-kind="container"><span class="df-shape df-shape-container">⬡</span><div><b>Container</b><small>Serviço / imagem</small></div><span>⋮⋮</span></div>
           <div class="df-palette-item" draggable="true" data-kind="network"><span class="df-shape df-shape-network">⌘</span><div><b>Rede bridge</b><small>Conectividade Docker</small></div><span>⋮⋮</span></div>
-          <div class="df-palette-note"><b>Como conectar?</b><p>Clique no conector circular de um bloco e depois no de outro. Entre dois containers, uma nova rede será criada no desenho.</p></div>
+          <div class="df-palette-note"><b>Como conectar?</b><p>Grafo: ligue os conectores. Redes como áreas: solte o container dentro do quadrado da rede. A conexão só será criada no Docker ao clicar Aplicar.</p></div>
           <div class="df-palette-foot"><label class="df-field">Topologia pronta<select id="df-template"><option value="">Escolher modelo...</option><option value="web-db">Web + Banco + Redis</option><option value="reverse-proxy">Proxy + APIs</option><option value="microservices">Microsserviços</option></select></label><button class="df-btn df-btn-subtle" id="df-template-load">Inserir template</button><button class="df-btn df-btn-subtle" id="df-import-file">↑ Importar JSON</button><input type="file" id="df-import-input" accept=".json,application/json" hidden></div>
         </aside>
         <div class="df-stage-wrap">
-          <div class="df-canvas-toolbar"><div><strong>Topologia ativa</strong><span id="df-graph-subtitle">Rascunho local</span></div><div class="df-inline"><button class="df-tool" id="df-undo" title="Desfazer edição">↶</button><button class="df-tool" id="df-redo" title="Refazer edição">↷</button><button class="df-tool" id="df-zoom-out" title="Reduzir">−</button><span id="df-zoom-label">100%</span><button class="df-tool" id="df-zoom-in" title="Ampliar">+</button><button class="df-tool" id="df-zoom-reset" title="Centralizar">⌖</button></div></div>
-          <div id="df-stage" aria-label="Editor visual interativo de redes Docker"><div id="df-world"><svg id="df-edges" xmlns="http://www.w3.org/2000/svg"></svg><div id="df-nodes"></div></div><svg id="df-minimap" viewBox="0 0 240 150" aria-label="Minimapa da topologia"></svg><div class="df-stage-hint">◇ Arraste para mover · clique nos conectores para ligar</div></div>
+          <div class="df-canvas-toolbar"><div><strong>Topologia ativa</strong><span id="df-graph-subtitle">Rascunho local</span></div><div class="df-inline"><label class="df-graph-search"><span>⌕</span><input id="df-graph-search" type="search" aria-label="Pesquisar blocos" placeholder="Pesquisar bloco" autocomplete="off"></label><label class="df-snap-label" title="Alinhar movimentos à grade de 20 pixels"><input type="checkbox" id="df-snap" checked> Grade</label><label class="df-view-switch">Rede como<select id="df-network-view" aria-label="Visualização das redes"><option value="lines">Grafo (linhas)</option><option value="zones">Áreas (arrastar)</option></select></label><button class="df-tool" id="df-layout" title="Organizar blocos automaticamente">⫶</button><button class="df-tool" id="df-duplicate" title="Duplicar blocos selecionados (Ctrl+D)">⧉</button><button class="df-tool" id="df-undo" title="Desfazer edição">↶</button><button class="df-tool" id="df-redo" title="Refazer edição">↷</button><button class="df-tool" id="df-zoom-out" title="Reduzir">−</button><span id="df-zoom-label">100%</span><button class="df-tool" id="df-zoom-in" title="Ampliar">+</button><button class="df-tool" id="df-zoom-reset" title="Centralizar">⌖</button></div></div>
+          <div id="df-stage" aria-label="Editor visual interativo de redes Docker"><div id="df-world"><svg id="df-edges" xmlns="http://www.w3.org/2000/svg"></svg><div id="df-nodes"></div></div><svg id="df-minimap" viewBox="0 0 240 150" aria-label="Minimapa da topologia"></svg><div class="df-stage-hint" id="df-stage-hint">◇ Arraste pelo cartão · Shift+clique seleciona vários · Ctrl+C/V copia rascunhos</div></div>
           <div class="df-canvas-footer"><div><span class="df-legend df-green"></span> Container <span class="df-legend df-sage"></span> Rede <span class="df-legend df-gray"></span> Rascunho</div><span id="df-selection-tip">Nenhum elemento selecionado</span></div>
         </div>
         <aside class="df-inspector" id="df-inspector"><div class="df-palette-intro"><strong>Inspetor</strong><small>Propriedades do elemento</small></div><div id="df-inspector-content" class="df-inspector-empty">Selecione um bloco ou uma conexão para ver seus detalhes.</div></aside>
       </div>
-      <div class="df-graph-foot"><div><b>◈ Edição segura</b><span>O desenho não modifica o Docker até você confirmar “Aplicar alterações”.</span></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-graph-report">↓ Relatório</button><button class="df-btn df-btn-subtle" id="df-graph-svg">↓ SVG</button><button class="df-btn df-btn-subtle" id="df-graph-compose">Gerar Compose ↗</button></div></div>
+      <div class="df-graph-foot"><div><b>◈ Edição segura</b><span>O desenho não modifica o Docker até você confirmar “Aplicar alterações”.</span></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-graph-report">↓ Relatório</button><button class="df-btn df-btn-subtle" id="df-graph-svg">↓ SVG</button><button class="df-btn df-btn-subtle" id="df-graph-png">↓ PNG</button><button class="df-btn df-btn-subtle" id="df-graph-compose">Gerar Compose ↗</button></div></div>
     </section>
 
     <section class="df-page" data-content="containers" hidden>
@@ -93,7 +93,7 @@
       <button class="df-btn df-btn-subtle" id="df-monitor-storage">Visualizar uso de armazenamento</button>
     </section>
     <section class="df-page" data-content="networks" hidden>
-      <div class="df-pagehead"><div><p class="df-eyebrow">INFRAESTRUTURA / NETWORK LAB</p><h1>Redes Docker</h1><p>Endereços, drivers e conexões com o daemon local.</p></div><button class="df-btn df-btn-primary" id="df-network-create">+ Nova rede bridge</button></div>
+      <div class="df-pagehead"><div><p class="df-eyebrow">INFRAESTRUTURA / NETWORK LAB</p><h1>Redes Docker</h1><p>Endereços, drivers e conexões com o daemon local.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-network-diagnose">◇ Diagnosticar DNS/TCP/HTTP</button><button class="df-btn df-btn-primary" id="df-network-create">+ Nova rede bridge</button></div></div>
       <div class="df-card"><div class="df-card-header"><strong>Redes observadas</strong></div><div id="df-network-list" class="df-table-wrap"></div></div>
     </section>
     <section class="df-page" data-content="tasks" hidden>
@@ -104,9 +104,30 @@
       <div class="df-pagehead"><div><p class="df-eyebrow">RECURSOS / VOLUMES</p><h1>Volumes & persistência</h1><p>Armazenamento de dados gerenciado pelo Docker.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-volume-orphans">Volumes órfãos</button><button class="df-btn df-btn-primary" id="df-volume-new">+ Novo volume</button></div></div><div class="df-card"><div class="df-card-header"><strong>Volumes locais</strong></div><div id="df-volume-list"></div></div>
     </section>
 
+    <section class="df-page" data-content="admin" hidden>
+      <div class="df-pagehead"><div><p class="df-eyebrow">OPERAÇÕES SENSÍVEIS / ADMIN</p>
+        <h1>Administração do Docker local</h1>
+        <p>Para Linux com agente polkit instalado. A senha é solicitada pelo sistema operacional, nunca por esta interface.</p>
+      </div></div>
+      <div class="df-card df-admin-card">
+        <div class="df-card-header"><strong>Zona de risco · Remover todos os containers</strong></div>
+        <div class="df-admin-content">
+          <p>Esta operação força a remoção de containers em execução e parados no socket
+            <code>unix:///var/run/docker.sock</code>. Os volumes nomeados não serão removidos.
+            Dados guardados somente dentro do container podem ser perdidos definitivamente.</p>
+          <p>O DockerFlow exige uma prévia atualizada, digitar <strong>APAGAR TODOS</strong>
+            e aprovar a janela nativa <strong>polkit/pkexec</strong>. Não existe modo silencioso ou
+            alternativa automática caso a autorização falhe.</p>
+          <div class="df-inline"><button class="df-btn df-btn-subtle" id="df-admin-scan">↻ Verificar containers locais</button>
+            <button class="df-btn df-btn-warn" id="df-admin-purge" disabled>Remover todos · autorização SO</button></div>
+          <div id="df-admin-preview" aria-live="polite" class="df-admin-result">Faça uma prévia para habilitar a operação.</div>
+        </div>
+      </div>
+    </section>
+
     <section class="df-page df-ide-page" data-content="ide" hidden>
       <div class="df-pagehead"><div><p class="df-eyebrow">AMBIENTE DE DESENVOLVIMENTO</p><h1>Compose IDE</h1><p>Edite, valide e execute seu docker-compose.yml sem sair do app.</p></div><div class="df-inline"><button class="df-btn df-btn-subtle" id="df-ide-open">↑ Abrir YAML</button><input id="df-ide-file" type="file" accept=".yml,.yaml,.txt,.dockerfile,Dockerfile" hidden><button class="df-btn df-btn-subtle" id="df-ide-to-graph">⌘ Visualizar Compose</button><button class="df-btn df-btn-subtle" id="df-ide-export">↓ Salvar arquivo</button></div></div>
-      <div class="df-ide-layout"><div class="df-editor-card"><div class="df-editor-bar"><div class="df-inline"><button class="df-editor-tab active" data-editor="compose">● <b>compose.yml</b></button><button class="df-editor-tab" data-editor="dockerfile">⬡ <b>Dockerfile</b></button></div><span id="df-editor-mode">YAML · UTF-8</span></div><textarea id="df-yaml" spellcheck="false" aria-label="Editor docker-compose YAML">services:
+      <div class="df-ide-layout"><div class="df-editor-card"><div class="df-editor-bar"><div class="df-inline"><button class="df-editor-tab active" data-editor="compose">● <b>compose.yml</b></button><button class="df-editor-tab" data-editor="dockerfile">⬡ <b>Dockerfile</b></button></div><div class="df-inline"><button id="df-editor-highlight-toggle" class="df-editor-tab" title="Prévia de sintaxe somente leitura">◈ Prévia destacada</button><span id="df-editor-mode">YAML · UTF-8</span></div></div><div class="df-editor-body"><pre id="df-editor-lines" class="df-editor-lines" aria-hidden="true">1</pre><textarea id="df-yaml" spellcheck="false" aria-label="Editor docker-compose YAML">services:
   web:
     image: nginx:alpine
     ports:
@@ -116,7 +137,7 @@ networks: {}
 WORKDIR /app
 COPY . .
 CMD ["python", "--version"]
-</textarea></div><aside class="df-ide-side"><h3>Executar projeto</h3><p>O YAML é salvo na pasta de dados do aplicativo. Confira antes de subir ou remover serviços.</p><label class="df-field">Nome do projeto<input id="df-project" value="dockerflow" pattern="[a-z][a-z0-9_-]*"></label><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-validate">✓ Validar YAML</button><button class="df-btn df-btn-primary df-wide df-compose-action" id="df-compose-up">▶ docker compose up</button><button class="df-btn df-btn-warn df-wide df-compose-action" id="df-compose-down">■ docker compose down</button><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-save">◫ Salvar projeto</button>
+</textarea><pre id="df-editor-preview" aria-label="Prévia destacada do código, somente leitura" hidden></pre></div></div><aside class="df-ide-side"><h3>Executar projeto</h3><p>O YAML é salvo na pasta de dados do aplicativo. Confira antes de subir ou remover serviços.</p><label class="df-field">Templates YAML<select id="df-ide-template"><option value="">Carregando...</option></select></label><button class="df-btn df-btn-subtle df-wide" id="df-ide-template-load">Inserir template YAML</button><label class="df-field">Nome do projeto<input id="df-project" value="dockerflow" pattern="[a-z][a-z0-9_-]*"></label><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-validate">✓ Validar YAML</button><button class="df-btn df-btn-primary df-wide df-compose-action" id="df-compose-up">▶ docker compose up</button><button class="df-btn df-btn-warn df-wide df-compose-action" id="df-compose-down">■ docker compose down</button><button class="df-btn df-btn-subtle df-wide df-compose-action" id="df-compose-save">◫ Salvar projeto</button>
       <div class="df-dockerfile-actions" hidden><label class="df-field">Template de Dockerfile<select id="df-dockerfile-snippet"><option value="python">Python</option><option value="node">Node.js</option><option value="nginx">Nginx</option><option value="go">Go</option><option value="postgres">PostgreSQL</option></select></label><button class="df-btn df-btn-subtle df-wide" id="df-dockerfile-template">Inserir template</button>
         <label class="df-field">Tag para docker build<input id="df-dockerfile-tag" value="minha-imagem:dev"></label>
         <button class="df-btn df-btn-primary df-wide" id="df-dockerfile-build">⬡ Build Dockerfile</button>

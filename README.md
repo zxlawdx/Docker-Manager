@@ -2,7 +2,7 @@
 
 **DockerFlow 0.2** é uma ferramenta desktop para visualizar e administrar Docker e desenhar suas redes com blocos, inspirada na interação de editores visuais como o BRModelo. Foi migrada de PyQt6 + gRPC para o **Vela Framework 0.2.2**, mantendo uma IDE para Docker Compose e Dockerfile e acrescentando um terminal Docker integrado.
 
-> **Branch de desenvolvimento:** `feat/vela-visual-studio`. A UI, os testes unitários e o pipeline foram adicionados, mas a integração com Docker Engine e os bundles de sistema devem passar por testes de aceitação antes de lançar uma versão final.
+> **Status:** a migração Vela da PR #2 está integrada à `main`. A continuação (tema escuro, editor avançado e diagnósticos) está na PR #3 até validação de testes e aceitação manual. Não use a aplicação experimental em hosts de produção sem revisar cada operação.
 
 ## Recursos
 
@@ -10,7 +10,9 @@
 - **Operações em estágios:** o canvas é somente um desenho até clicar **Aplicar alterações** e confirmar; geração de **Compose** a partir dos nós e conexões, export/import JSON, exemplo offline.
 - **Visão geral e gerenciamento:** containers (iniciar/parar/reiniciar/pausar/remover, inspecionar, logs, stats), imagens (pull/build/remove) e volumes (listar/criar/remover).
 - **IDE:** editor Compose, validação, `up -d`, `down`, gerenciamento de projetos locais; editor Dockerfile, presets Python/Node/Nginx/Go/PostgreSQL e build local.
-- **Terminal no aplicativo:** PTY Docker real para comandos e shells `sh`, `bash`, `ash`. Compatível com comandos de linha; **não** é emulador full-screen xterm.
+- **Terminal no aplicativo:** PTY Docker real para comandos e shells `sh`, `bash`, `ash`, com histórico de comandos só na memória da sessão (não salvo). **Não** é emulador full-screen xterm.
+- **PR #3, experimental:** alternância tema sistema/claro/escuro persistente; canvas com seleção múltipla, cópia/duplicação só de rascunhos, encaixe à grade, pesquisa, layout e PNG; IPAM IPv6/aliases/DNS; diagnóstico DNS/TCP/HTTP entre containers; identificação de volumes referenciados inclusive por containers parados; listagem de processos sem argumentos; IDE com números de linha e prévia sintática offline.
+- **Segurança da topologia:** novos containers do desenho entram diretamente na primeira rede ligada, sem anexação implícita à bridge padrão; blocos sem rede explícita usam `network=none`. O pré-voo permanece consultivo: alterações podem ocorrer entre validação e execução e a aplicação ainda não tem rollback atômico.
 
 Interface independente das páginas visuais do shell Vela: HTML/CSS/JS offline na janela nativa, tema editorial branco/verde e API Python em loopback. O código antigo gRPC e PyQt6 foi preservado no repositório para comparação, **não é executado** no novo `manage.py`.
 
@@ -19,7 +21,7 @@ Interface independente das páginas visuais do shell Vela: HTML/CSS/JS offline n
 Requer Python 3.12, Docker Engine funcional e Qt6/WebEngine. Execute o Docker com um usuário autorizado. Acesso ao socket do Docker equivale a controle privilegiado sobre o host: não exponha a API Vela na rede.
 
 ~~~bash
-git clone -b feat/vela-visual-studio https://github.com/zxlawdx/Docker-Manager.git
+git clone https://github.com/zxlawdx/Docker-Manager.git
 cd Docker-Manager
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -78,4 +80,21 @@ Consulte [auditoria técnica, limitações, comparativo do projeto original e ro
 
 ## Desenvolvimento e escopo
 
-Consulte o [roteiro completo de funcionalidades, pendências e limites](docs/ROADMAP_ALL.md). A migração Vela permanece na PR #2; não considere os recursos experimentais liberados para produção até concluir a validação.
+Consulte o [roteiro completo de funcionalidades, pendências e limites](docs/ROADMAP_ALL.md). A migração Vela foi integrada na PR #2. A PR #3 amplia o editor e a infraestrutura; não considere os recursos experimentais liberados para produção antes de validar a aplicação nativa e os workflows.
+
+## PR #3 · correções de arraste, visualização por redes e biblioteca YAML
+
+O editor agora captura os movimentos no **stage** estável, em vez de no próprio cartão (que pode perder eventos do Qt WebView). Há duas formas de trabalhar no mesmo rascunho:
+
+- **Grafo (linhas):** arraste os cartões; faça ligações pelos conectores.
+- **Redes (áreas):** alterne para `Áreas (arrastar)` e solte um container dentro do quadrado da rede. Isso cria uma associação **pendente**, inclusive para containers já existentes; somente `Aplicar alterações` executa a ligação no Docker.
+
+**Trazer todas as relações** consulta novamente containers e redes do daemon e reconstrói as associações observadas. A importação preserva identidades somente durante essa sessão; projetos salvos/JSON carregam sempre como rascunho. O botão pergunta antes de descartar alterações locais. Containers associados a várias redes ocupam visualmente a primeira e mostram etiquetas para as demais. Remover a associação deve ser explícito pelo inspetor do grafo, não basta arrastar o container para fora do quadrado.
+
+A biblioteca offline possui modelos individuais e stacks YAML editáveis (PostgreSQL, MySQL, MariaDB, MongoDB, Redis, RabbitMQ, Grafana, Prometheus, Nginx, Caddy, WordPress, Ollama, Registry, Python/Node e stacks prontas). Na Compose IDE, selecione o template, confirme a substituição do editor e revise o YAML. **Templates não executam o Docker automaticamente.** Modelos com banco de dados exigem variáveis de ambiente reais: placeholders `\u0024{VAR:?Defina...}` nunca podem ser aplicados como senha literal pelo canvas.
+
+### Admin: remoção total opcional no Linux
+
+A tela **Administração** possui verificação prévia e um botão separado para remoção de todos os containers **locais**. Este recurso é intencionalmente restrito a Linux com socket `/var/run/docker.sock` e agente gráfico polkit/pkexec instalado. Use o aplicativo como usuário normal autorizado a consultar o Docker. A sequência é: verificar a lista, digitar exatamente `APAGAR TODOS`, confirmar a janela gráfica do **sistema operacional** (fora da WebView) e conferir novamente os containers. Nenhuma senha é recebida no HTML, nenhuma elevação silenciosa ocorre e não há fallback automático se a autorização falhar. A operação força a remoção de containers, mas **não apaga volumes nomeados**. Dados apenas na camada gravável dos containers podem se perder.
+
+Esta ferramenta não constitui controle de acesso multiusuário. Qualquer conta que já tenha permissão de escrever no socket Docker dispõe potencialmente de privilégios equivalentes aos de root; não exponha a aplicação na rede. Confira o daemon e faça backup antes de operações destrutivas.

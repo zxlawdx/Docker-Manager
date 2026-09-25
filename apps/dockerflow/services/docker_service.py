@@ -92,6 +92,17 @@ class DockerService:
             if mode not in ("ro", "rw"):
                 raise ValueError("Modo de montagem inválido")
             volumes[v["source"]] = {"bind": v["target"], "mode": mode}
+        if data.get("dns"):
+            servers = data["dns"]
+            if not isinstance(servers, list) or len(servers) > 4:
+                raise ValueError("DNS: até quatro endereços IP")
+            extra["dns"] = [str(ipaddress.ip_address(ip)) for ip in servers]
+        if data.get("command") is not None:
+            command = data["command"]
+            if (not isinstance(command, list) or not 1 <= len(command) <= 30 or
+                any(not isinstance(x, str) or not x or len(x) > 200 for x in command)):
+                raise ValueError("Comando deve ser uma lista de até 30 argumentos")
+            extra["command"] = command
         c = self.client.containers.run(
             image, name=data.get("name") or None, detach=True, ports=ports,
             environment=data.get("environment") or {}, volumes=volumes,
@@ -118,6 +129,20 @@ class DockerService:
         s = self.client.containers.get(identifier).stats(stream=False)
         return {"cpu": s.get("cpu_stats", {}), "precpu": s.get("precpu_stats", {}),
                 "memory": s.get("memory_stats", {}), "networks": s.get("networks", {})}
+
+    def processes(self, identifier):
+        """Processos sem argumentos/comandos, pois podem revelar segredos."""
+        c = self.client.containers.get(identifier)
+        if c.status != "running":
+            raise ValueError("O container precisa estar em execução")
+        output = c.top()
+        titles = output.get("Titles") or []
+        columns = [(i, name) for i, name in enumerate(titles)
+                   if str(name).upper() in {"PID", "PPID", "UID", "USER", "TIME", "%CPU", "%MEM", "STAT"}]
+        processes = [{name: str(row[i])[:120] for i, name in columns if i < len(row)}
+                     for row in (output.get("Processes") or [])[:150]]
+        return {"container": c.name, "columns": [name for _, name in columns],
+                "processes": processes, "note": "COMMAND/ARGS omitidos para proteger segredos."}
 
     def images(self):
         return [{"id": i.id, "tags": i.tags, "size": i.attrs.get("Size", 0)}
@@ -170,7 +195,8 @@ class DockerService:
                          "internal": a.get("Internal", False),
                          "scope": a.get("Scope"), "ipam": a.get("IPAM") or {},
                          "ipv6": a.get("EnableIPv6", False), "containers": [
-                             {"id": ident, "name": info.get("Name", ""), "ip": info.get("IPv4Address", "")}
+                             {"id": ident, "name": info.get("Name", ""), "ip": info.get("IPv4Address", ""),
+                              "ipv6": info.get("IPv6Address", "")}
                              for ident, info in (a.get("Containers") or {}).items()]})
         return rows
 
@@ -182,18 +208,34 @@ class DockerService:
                 raise ValueError("Nome de rede inválido")
             subnet = str(data.get("subnet") or "").strip()
             gateway = str(data.get("gateway") or "").strip()
+            subnet6 = str(data.get("ipv6_subnet") or "").strip()
+            gateway6 = str(data.get("ipv6_gateway") or "").strip()
             kwargs = {"driver": "bridge", "check_duplicate": True,
                       "internal": bool(data.get("internal"))}
             if gateway and not subnet:
                 raise ValueError("Defina a sub-rede antes do gateway")
+            pools = []
             if subnet:
                 network = ipaddress.ip_network(subnet, strict=True)
+                if network.version != 4:
+                    raise ValueError("A primeira sub-rede deve ser IPv4")
                 if gateway and ipaddress.ip_address(gateway) not in network:
                     raise ValueError("Gateway fora da sub-rede")
-                kwargs["ipam"] = IPAMConfig(pool_configs=[IPAMPool(subnet=str(network),
-                                                                  gateway=gateway or None)])
-            if data.get("enable_ipv6"):
+                pools.append(IPAMPool(subnet=str(network), gateway=gateway or None))
+            if gateway6 and not subnet6:
+                raise ValueError("Defina a sub-rede IPv6 antes do gateway IPv6")
+            if subnet6:
+                network6 = ipaddress.ip_network(subnet6, strict=True)
+                if network6.version != 6:
+                    raise ValueError("A sub-rede secundária deve ser IPv6")
+                if gateway6 and ipaddress.ip_address(gateway6) not in network6:
+                    raise ValueError("Gateway IPv6 fora da sub-rede")
+                pools.append(IPAMPool(subnet=str(network6), gateway=gateway6 or None))
                 kwargs["enable_ipv6"] = True
+            elif data.get("enable_ipv6"):
+                kwargs["enable_ipv6"] = True
+            if pools:
+                kwargs["ipam"] = IPAMConfig(pool_configs=pools)
             n = self.client.networks.create(name, **kwargs)
             return {"ok": True, "id": n.id}
         n = self.client.networks.get(data["network"])
@@ -209,8 +251,19 @@ class DockerService:
             n.reload()
             is_connected = c.id in (n.attrs.get("Containers") or {})
             if action == "connect" and not is_connected:
-                n.connect(c, aliases=data.get("aliases") or None,
-                          ipv4_address=data.get("ipv4_address") or None)
+                import re
+                aliases = data.get("aliases") or []
+                if (not isinstance(aliases, list) or len(aliases) > 8 or
+                    any(not isinstance(a, str) or not re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9.-]{0,62}", a) or ".." in a for a in aliases)):
+                    raise ValueError("Aliases inválidos (até oito nomes DNS)")
+                ipv4 = str(data.get("ipv4_address") or "").strip()
+                ipv6 = str(data.get("ipv6_address") or "").strip()
+                for address, version in ((ipv4, 4), (ipv6, 6)):
+                    if address and ipaddress.ip_address(address).version != version:
+                        raise ValueError("Endereço IP incompatível com IPv4/IPv6")
+                n.connect(c, aliases=aliases or None, ipv4_address=ipv4 or None,
+                          ipv6_address=ipv6 or None)
             if action == "disconnect" and is_connected:
                 if n.name in ("bridge", "host", "none"):
                     raise ValueError("Rede padrão protegida")
@@ -219,15 +272,33 @@ class DockerService:
             raise ValueError("Ação inválida")
         return {"ok": True}
 
+    def _volume_references(self):
+        references = {}
+        for c in self.client.containers.list(all=True):
+            for mount in c.attrs.get("Mounts") or []:
+                if mount.get("Type") == "volume" and mount.get("Name"):
+                    references.setdefault(mount["Name"], set()).add(c.name)
+        return references
+
     def volumes(self):
-        return [{"name": v.name, "driver": v.attrs.get("Driver", "")}
+        references = self._volume_references()
+        return [{"name": v.name, "driver": v.attrs.get("Driver", ""),
+                 "containers": sorted(references.get(v.name, set()))}
                 for v in self.client.volumes.list()]
 
     def volume_action(self, action, data):
         if action == "create":
             v = self.client.volumes.create(name=data["name"])
             return {"ok": True, "name": v.name}
+        if action == "inspect":
+            v = self.client.volumes.get(data["name"])
+            return {"name": v.name, "driver": v.attrs.get("Driver", ""),
+                    "scope": v.attrs.get("Scope", ""), "mountpoint": v.attrs.get("Mountpoint", ""),
+                    "containers": sorted(self._volume_references().get(v.name, set())),
+                    "note": "Options/labels omitidos: podem armazenar credenciais."}
         if action == "remove":
+            if self._volume_references().get(data["name"]):
+                raise ValueError("Volume referenciado por containers, inclusive parados")
             self.client.volumes.get(data["name"]).remove(force=False)
             return {"ok": True}
         raise ValueError("Ação inválida")

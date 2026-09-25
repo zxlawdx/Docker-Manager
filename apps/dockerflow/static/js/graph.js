@@ -15,6 +15,135 @@
     const inspector = $("df-inspector-content"), svg = $("df-edges");
     const history=[], future=[];
     let wireDrag=null,suppressPortClick=false;
+    const selectedNodes=new Set();
+    let clipboard=null,searchTerm="";
+    let networkView="lines";
+    try {if(localStorage.getItem("dockerflow.network.view")==="zones")networkView="zones";}catch(_){}
+    const ZONE_WIDTH=370,ZONE_HEIGHT=250;
+    let snapEnabled=true;
+    try{snapEnabled=localStorage.getItem("dockerflow.graph.snap")!=="false";}catch(_){}
+    const snap=(number)=>snapEnabled?Math.round(number/20)*20:Math.round(number);
+    const freshName=(name,kind)=>{let candidate=name+"-copia",i=2;
+      while(state.nodes.some(n=>n.kind===kind&&n.name===candidate))candidate=name+"-copia-"+i++;
+      return candidate;};
+    function selectedDrafts(){return state.nodes.filter(n=>selectedNodes.has(n.id)&&!n.existing);}
+    function copySelection(){
+      const draft=selectedDrafts();
+      if(!draft.length)return deps.toast("Selecione um bloco planejado; recursos existentes não podem ser duplicados automaticamente.");
+      const ids=new Set(draft.map(n=>n.id));
+      clipboard={nodes:JSON.parse(JSON.stringify(draft)),
+        edges:JSON.parse(JSON.stringify(state.edges.filter(e=>ids.has(e.source)&&ids.has(e.target))))};
+      deps.toast(draft.length+" bloco(s) de rascunho copiado(s) na memória do editor.");
+    }
+    function pasteSelection(){
+      if(!clipboard?.nodes?.length)return deps.toast("Copie blocos de rascunho antes de colar.");
+      if(state.nodes.length+clipboard.nodes.length>150)return deps.toast("Limite de 150 blocos no editor.",true);
+      checkpoint();
+      const ids=new Map();
+      selectedNodes.clear();
+      clipboard.nodes.forEach(n=>{
+        const id=uid();ids.set(n.id,id);
+        const copy={...JSON.parse(JSON.stringify(n)),id,name:freshName(n.name,n.kind),
+          x:snap(Math.min(2100,n.x+40)),y:snap(Math.min(1480,n.y+40)),
+          existing:false,dockerId:null,status:undefined};
+        // Nomes únicos até dentro do conjunto colado.
+        state.nodes.push(copy);selectedNodes.add(id);
+      });
+      clipboard.edges.forEach(e=>{
+        const a=ids.get(e.source),b=ids.get(e.target);
+        if(a&&b)state.edges.push({id:uid(),source:a,target:b,persisted:false});
+      });
+      state.selected={type:"node",id:[...selectedNodes][0]};
+      clipboard.nodes.forEach(n=>{n.x+=40;n.y+=40;});
+      render();persistPositions();
+      deps.toast("Cópia adicionada ao rascunho. Revise nomes e portas antes de aplicar.");
+    }
+    function zoneHeight(n){
+      return Math.max(ZONE_HEIGHT,120+Math.ceil(state.edges.filter(e=>e.source===n.id).length/2)*114);
+    }
+    function arrangeZones(){
+      if(!state.nodes.length)return render();
+      checkpoint();
+      const networks=state.nodes.filter(n=>n.kind==="network").sort((a,b)=>a.name.localeCompare(b.name));
+      let top=50;
+      for(let i=0;i<networks.length;i+=2){
+        const row=networks.slice(i,i+2);
+        row.forEach((net,col)=>{net.zoneHeight=zoneHeight(net);net.x=40+col*470;net.y=top;});
+        top+=Math.max(...row.map(n=>n.zoneHeight))+90;
+      }
+      const placed=new Set();
+      networks.forEach(net=>{
+        let slot=0;
+        state.edges.filter(e=>e.source===net.id).forEach(e=>{
+          const c=node(e.target);
+          if(!c||placed.has(c.id))return;
+          c.x=net.x+12+(slot%2)*176;c.y=net.y+98+Math.floor(slot/2)*114;
+          slot++;placed.add(c.id);
+        });
+      });
+      let orphan=0;
+      state.nodes.filter(n=>n.kind==="container"&&!placed.has(n.id)).forEach(n=>{
+        n.x=60+(orphan%4)*202;n.y=top+30+Math.floor(orphan/4)*125;orphan++;
+      });
+      state.pan={x:24,y:24};state.zoom=.83;persistPositions();render();
+    }
+    function setNetworkView(view,rearrange=false){
+      networkView=view==="zones"?"zones":"lines";
+      stage.classList.toggle("df-zone-mode",networkView==="zones");
+      $("df-network-view").value=networkView;
+      $("df-stage-hint").textContent=networkView==="zones"?
+        "Arraste o container para dentro da rede. Associação pendente até clicar Aplicar.":
+        "Arraste cartões para mover; conectores para ligar. Shift seleciona múltiplos.";
+      try{localStorage.setItem("dockerflow.network.view",networkView);}catch(_){}
+      if(rearrange&&networkView==="zones")arrangeZones();else render();
+    }
+    function zoneAt(x,y){
+      return state.nodes.filter(n=>n.kind==="network").reverse().find(n=>
+        x>=n.x&&x<=n.x+ZONE_WIDTH&&y>=n.y&&y<=n.y+(n.zoneHeight||ZONE_HEIGHT));
+    }
+    function attachByDrop(ids,clientX,clientY){
+      if(networkView!=="zones")return;
+      const p=graphPoint(clientX,clientY),zone=zoneAt(p.x,p.y);
+      if(!zone)return;
+      let count=0;
+      ids.forEach(id=>{const c=node(id);
+        if(c?.kind==="container"&&normalizeEdge(zone.id,c.id,false))count++;
+      });
+      if(count){zone.zoneHeight=Math.max(zone.zoneHeight||ZONE_HEIGHT,zoneHeight(zone));
+        deps.toast(count+" ligação(ões) planejada(s) para "+zone.name+". Revise e clique Aplicar.");}
+    }
+    async function importAllRelations(){
+      try{
+        const imported=await importDocker();
+        if(!imported)return;
+        if(networkView!=="zones")autoLayout();
+        deps.toast("Todas as relações do Docker foram importadas para edição visual.");
+      }catch(e){deps.toast(e.message,true);}
+    }
+    function autoLayout(){
+      if(!state.nodes.length)return;
+      checkpoint();
+      const networks=state.nodes.filter(n=>n.kind==="network"),
+        containers=state.nodes.filter(n=>n.kind==="container");
+      const connected=new Map(containers.map(n=>[n.id,0]));
+      state.edges.forEach(e=>{if(connected.has(e.target))connected.set(e.target,connected.get(e.target)+1);});
+      containers.sort((a,b)=>(connected.get(b.id)||0)-(connected.get(a.id)||0)||a.name.localeCompare(b.name));
+      networks.sort((a,b)=>a.name.localeCompare(b.name));
+      networks.forEach((n,i)=>{n.x=420;n.y=60+i*150;});
+      containers.forEach((n,i)=>{const left=i%2===0;n.x=left?85:770;n.y=60+Math.floor(i/2)*145;});
+      selectedNodes.clear();state.selected=null;persistPositions();render();
+      deps.toast("Layout reorganizado no desenho. Nenhum recurso Docker foi alterado.");
+    }
+    function isEditingTarget(target){return !!target.closest('input,textarea,select,[contenteditable="true"]');}
+    function onGraphKeyboard(e){
+      if(!stage.isConnected||!stage.closest(".df-page")?.classList.contains("visible")||isEditingTarget(e.target))return;
+      const cmd=e.ctrlKey||e.metaKey,key=e.key.toLowerCase();
+      if(cmd&&key==="c"){e.preventDefault();copySelection();}
+      if(cmd&&key==="v"){e.preventDefault();pasteSelection();}
+      if(cmd&&key==="d"){e.preventDefault();copySelection();pasteSelection();}
+      if(cmd&&key==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}
+      if((e.key==="Delete"||e.key==="Backspace")&&state.selected){e.preventDefault();removeSelected();}
+    }
     function graphPoint(clientX,clientY){
       const rect=stage.getBoundingClientRect();
       return {x:(clientX-rect.left-state.pan.x)/state.zoom,
@@ -30,6 +159,7 @@
     function restore(data){
       const saved=JSON.parse(data);
       Object.assign(state,saved,{selected:null,linking:null,activeDrag:null,origin:null});
+      selectedNodes.clear();
       render();persistPositions();
     }
     function undo(){
@@ -49,9 +179,10 @@
       // IDs presentes em JSON/Compose são rascunhos, nunca autorização para agir em recursos existentes.
       state.nodes=document.nodes.map(n=>({...n,existing:false,dockerId:null}));
       state.edges=document.edges.map(e=>({...e,persisted:false}));
-      state.removed=[];state.selected=null;state.linking=null;
+      state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
       sourceCompose=document.source_compose||"";
-      render();persistPositions();
+      if(networkView==="zones")arrangeZones();else render();
+      persistPositions();
     }
     async function saveProject(){
       const values=await deps.ask({title:"Salvar projeto visual",fields:[{key:"name",label:"Nome do projeto",value:"laboratorio"}],confirmText:"Salvar"});
@@ -109,10 +240,17 @@
           redis:{image:"redis:7-alpine",networks:["internal"]}
         },networks:{edge:{},internal:{internal:true}}}
       };
-      if(!templates[name])return;
-      if(draftCount() && !(await deps.ask({title:"Substituir rascunho?",fields:[]})))return;
-      const result=await deps.api("/graph/from-compose","POST",{content:toYamlTemplate(templates[name])});
-      loadGraph(result);deps.toast("Topologia de exemplo carregada. Ajuste os serviços antes de aplicar.");
+      if(!name)return deps.toast("Selecione um template.",true);
+      if(draftCount() && !(await deps.ask({title:"Substituir rascunho?",
+        description:"Este template substituirá o desenho atual. Exporte JSON para conservar seu trabalho.",fields:[]})))return;
+      try{
+        const source=templates[name]?{content:toYamlTemplate(templates[name]),title:name,notes:""}:
+          await deps.api("/templates/compose","POST",{id:name});
+        const result=await deps.api("/graph/from-compose","POST",{content:source.content});
+        loadGraph(result);
+        deps.toast("Template "+source.title+" carregado como rascunho. Revise redes e credenciais antes de aplicar.");
+        if(source.notes)deps.showOutput("Orientações do template",source.notes);
+      }catch(err){deps.toast(err.message,true);}
     }
     function toYamlTemplate(t){
       // Os templates simples evitam adicionar dependências de YAML no frontend.
@@ -129,7 +267,7 @@
       }
       return lines.join("\n")+"\n";
     }
-    function exportSvg(){
+    function svgDocument(){
       const elements=state.edges.map(e=>{
         const a=node(e.source),b=node(e.target);if(!a||!b)return "";
         return '<line x1="'+(a.x+87)+'" y1="'+(a.y+40)+'" x2="'+(b.x+87)+'" y2="'+(b.y+40)+'" stroke="#70a583" stroke-width="2"/>';
@@ -139,9 +277,35 @@
         '" y="'+(n.y+59)+'" font-family="sans-serif" font-size="10" fill="#537760">'+
         esc(n.kind==="network"?(n.driver||"bridge"):(n.image||"Sem imagem"))+'</text></g>').join("");
       const w=Math.max(760,...state.nodes.map(n=>n.x+230)),h=Math.max(480,...state.nodes.map(n=>n.y+140));
-      deps.download("dockerflow-diagrama.svg",'<svg xmlns="http://www.w3.org/2000/svg" width="'+w+
+      if(!Number.isFinite(w)||!Number.isFinite(h)||w>4000||h>4000)
+        throw new Error("Diagrama muito grande para exportação (máximo 4000×4000). Reorganize os blocos.");
+      return {w,h,content:'<svg xmlns="http://www.w3.org/2000/svg" width="'+w+
         '" height="'+h+'" viewBox="0 0 '+w+' '+h+'"><rect width="100%" height="100%" fill="#f6faf5"/>'+
-        elements+'</svg>',"image/svg+xml");
+        elements+'</svg>'};
+    }
+    function exportSvg(){
+      try{deps.download("dockerflow-diagrama.svg",svgDocument().content,"image/svg+xml");}
+      catch(e){deps.toast(e.message,true);}
+    }
+    async function exportPng(){
+      let url=null;
+      try {
+        const doc=svgDocument(),blob=new Blob([doc.content],{type:"image/svg+xml;charset=utf-8"});
+        url=URL.createObjectURL(blob);
+        const image=new Image();
+        await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error("Renderização PNG indisponível nesta WebView"));image.src=url;});
+        const canvas=document.createElement("canvas");
+        canvas.width=doc.w;canvas.height=doc.h;
+        const ctx=canvas.getContext("2d");
+        if(!ctx)throw new Error("Canvas não suportado");
+        ctx.drawImage(image,0,0);
+        const png=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+        if(!png)throw new Error("Não foi possível criar o PNG");
+        const pngUrl=URL.createObjectURL(png),a=document.createElement("a");
+        a.href=pngUrl;a.download="dockerflow-diagrama.png";document.body.appendChild(a);
+        a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(pngUrl),2000);
+      }catch(e){deps.toast(e.message,true);}
+      finally{if(url)URL.revokeObjectURL(url);}
     }
     function minimap(){
       const map=$("df-minimap");if(!map)return;
@@ -191,23 +355,36 @@
     function clearSelection() {state.selected=null; render();}
     function render() {
       transform();
-      layer.innerHTML = state.nodes.map(n => {
-        const selected=state.selected && state.selected.type==="node" && state.selected.id===n.id;
+      // Renderizar zonas antes dos containers para preservar hit-testing do arraste.
+      layer.innerHTML = [...state.nodes].sort((a,b)=>Number(a.kind==="container")-Number(b.kind==="container")).map(n=>{
+        const selected=selectedNodes.has(n.id)||
+          (state.selected&&state.selected.type==="node"&&state.selected.id===n.id);
+        const dimmed=searchTerm&&!((n.name||"")+" "+(n.image||"")+" "+(n.driver||""))
+          .toLocaleLowerCase("pt-BR").includes(searchTerm);
+        const zone=n.kind==="network"&&networkView==="zones";
         const symbol=n.kind==="network"?"⌘":"⬡";
-        const meta=n.kind==="network"?(n.driver||"bridge")+" · Docker network":
-          (n.image||"Imagem não definida");
-        const status=n.kind==="network"?
-          (n.existing?"Rede existente":"Nova rede planejada"):
-          (n.existing?(n.status||"desconhecido"):"Container planejado");
-        return '<article class="df-graph-node '+esc(n.kind)+(n.existing?'':' draft')+
-          (selected?' selected':'')+'" data-id="'+esc(n.id)+'" style="left:'+Number(n.x)+
-          'px;top:'+Number(n.y)+'px"><div class="df-node-bar"></div><div class="df-node-body">'+
-          '<div class="df-node-top"><span class="df-node-symbol">'+symbol+'</span><div style="min-width:0">'+
-          '<div class="df-node-title" title="'+esc(n.name)+'">'+esc(n.name)+'</div>'+
-          '<div class="df-node-meta" title="'+esc(meta)+'">'+esc(meta)+'</div></div></div>'+
-          '<div class="df-node-status">'+esc(status)+'</div></div>'+
-          '<button class="df-port'+(state.linking===n.id?' armed':'')+
-          '" title="Conectar a outro bloco" data-port="'+esc(n.id)+'"></button></article>';
+        const meta=n.kind==="network"?(n.driver||"bridge")+" · rede":n.image||"Imagem não definida";
+        const status=n.kind==="network"?(n.existing?"Rede existente":"Rede planejada"):
+          n.existing?(n.status||"desconhecido"):"Container planejado";
+        const memberships=n.kind==="container"&&networkView==="zones"?
+          state.edges.filter(e=>e.target===n.id).map(e=>node(e.source)?.name).filter(Boolean):[];
+        const badges=memberships.length?'<div class="df-zone-memberships">'+
+          memberships.map(name=>'<span>'+esc(name)+'</span>').join("")+'</div>':"";
+        return '<article class="df-graph-node '+(zone?'df-network-zone ':'')+
+          esc(n.kind)+(n.existing?'':' draft')+(selected?' selected':'')+
+          (dimmed?' df-dimmed':'')+'" data-id="'+esc(n.id)+
+          '" style="left:'+Number(n.x)+'px;top:'+Number(n.y)+'px'+
+          (zone?';height:'+Number(n.zoneHeight||ZONE_HEIGHT)+'px':'')+
+          '"><div class="df-node-bar"></div><div class="df-node-body"'+
+          (zone?' data-zone-handle="true"':'')+'>'+
+          '<div class="df-node-top"><span class="df-node-symbol">'+symbol+
+          '</span><div style="min-width:0"><div class="df-node-title" title="'+esc(n.name)+'">'+
+          esc(n.name)+'</div><div class="df-node-meta" title="'+esc(meta)+'">'+
+          esc(meta)+'</div></div></div><div class="df-node-status">'+esc(status)+'</div>'+
+          (zone?'<div class="df-zone-help">Solte containers aqui · '+
+            state.edges.filter(e=>e.source===n.id).length+' associado(s)</div>':"")+
+          badges+'</div><button class="df-port'+(state.linking===n.id?' armed':'')+
+          '" title="Conectar blocos" data-port="'+esc(n.id)+'"></button></article>';
       }).join("");
       svg.innerHTML=state.edges.map(e=>{
         const a=node(e.source),b=node(e.target);
@@ -268,6 +445,9 @@
       catch(_) {throw new Error("JSON de ambiente inválido no container "+n.name);}
       if(!environment || typeof environment!=="object" || Array.isArray(environment))
         throw new Error("Variáveis do container "+n.name+" precisam ser um objeto JSON.");
+      if(Object.values(environment).some(v=>typeof v==="string"&&/\$\{[^}]+\}/.test(v)))
+        throw new Error("Preencha as credenciais pendentes de "+n.name+
+          " antes de criar containers reais. Na IDE Compose, placeholders são resolvidos pelo ambiente.");
       const ports=[],host=String(n.host_port||"").trim(),inside=String(n.container_port||"").trim();
       if(host||inside){
         if(!host||!inside||![host,inside].every(v=>/^\d+$/.test(v)&&Number(v)>0&&Number(v)<65536))
@@ -295,6 +475,15 @@
 
     function renderInspector() {
       const selected=state.selected;
+      if(selectedNodes.size>1){
+        inspector.className="df-inspect-card";
+        inspector.innerHTML='<p class="df-eyebrow">SELEÇÃO MÚLTIPLA</p><h3>'+
+          selectedNodes.size+' blocos</h3><p>Shift+clique alterna a seleção. Só é possível duplicar blocos ainda não criados.</p>'+
+          '<button class="df-btn df-btn-subtle" data-graph-action="duplicate">Duplicar rascunhos</button>'+
+          '<button class="df-btn df-btn-warn" data-graph-action="delete-node">Retirar seleção do diagrama</button>';
+        $("df-selection-tip").textContent=selectedNodes.size+" blocos selecionados";
+        return;
+      }
       if (!selected) {
         inspector.className="df-inspector-empty";
         inspector.textContent="Selecione um bloco ou uma conexão para ver propriedades e opções.";
@@ -320,7 +509,9 @@
         (n.kind==="container"?field("Imagem",n.image||"","image",n.existing)+advancedContainer(n):
           '<label class="df-field">Driver<input value="bridge" disabled></label>'+
           (!n.existing?field("Sub-rede CIDR (opcional)",n.subnet||"","subnet")+
-          field("Gateway (opcional)",n.gateway||"","gateway")+
+          field("Gateway IPv4 (opcional)",n.gateway||"","gateway")+
+          field("Sub-rede IPv6 CIDR (opcional)",n.ipv6_subnet||"","ipv6_subnet")+
+          field("Gateway IPv6 (opcional)",n.ipv6_gateway||"","ipv6_gateway")+
           '<label class="df-field"><span><input style="width:auto" type="checkbox" data-internal '+
             (n.internal?'checked':'')+'> Somente interna</span></label>':""))+
         '<div class="df-inspect-value">'+(n.existing?"DOCKER ID "+esc(n.dockerId||""):"RASCUNHO • NÃO CRIADO")+
@@ -344,10 +535,11 @@
       });
       if (!values) return;
       const n={id:uid(),kind,name:values.name.trim()||"sem-nome",
-        x:Math.round(x),y:Math.round(y),existing:false,driver:"bridge",
+        x:snap(x),y:snap(y),existing:false,driver:"bridge",
         image:values.image?.trim()||"",internal:false};
       if(state.nodes.some(o=>o.name===n.name&&o.kind===n.kind)) return deps.toast("Nome já usado no desenho",true);
-      checkpoint();state.nodes.push(n);state.selected={type:"node",id:n.id};persistPositions();render();
+      checkpoint();state.nodes.push(n);selectedNodes.clear();selectedNodes.add(n.id);state.selected={type:"node",id:n.id};persistPositions();render();
+      return n;
     }
     async function connect(a,b) {
       if (a===b) return deps.toast("Escolha outro bloco",true);
@@ -393,7 +585,7 @@
         {id:uid(),source:uidNet,target:uidWeb,persisted:false},
         {id:uid(),source:uidNet,target:uidDb,persisted:false}
       ];
-      state.removed=[];state.selected=null;state.linking=null;
+      state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
       state.zoom=.85;state.pan={x:25,y:35};persistPositions();render();
       deps.toast("Exemplo editável carregado. O Docker ainda não foi alterado.");
     }
@@ -419,12 +611,22 @@
         });
       });
       history.length=0;future.length=0;sourceCompose="";
-      state.nodes=nodes;state.edges=edges;state.removed=[];state.selected=null;state.linking=null;
-      render();persistPositions();deps.toast("Topologia importada do Docker");
+      state.nodes=nodes;state.edges=edges;state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
+      if(networkView==="zones")arrangeZones();else render();
+      persistPositions();deps.toast("Topologia importada do Docker");
+      return true;
     }
     function removeSelected() {
-      if(!state.selected)return;
+      if(!state.selected&&!selectedNodes.size)return;
       checkpoint();
+      if(selectedNodes.size>1){
+        // Excluir visualmente não implica apagar containers/redes reais.
+        const removed=new Set(selectedNodes);
+        state.nodes=state.nodes.filter(n=>!removed.has(n.id));
+        state.edges=state.edges.filter(e=>!removed.has(e.source)&&!removed.has(e.target));
+        selectedNodes.clear();state.selected=null;render();persistPositions();
+        return;
+      }
       if(state.selected.type==="edge") {
         const e=state.edges.find(x=>x.id===state.selected.id);
         if (e?.persisted) state.removed.push({source:e.source,target:e.target});
@@ -442,7 +644,7 @@
         }
         state.nodes=state.nodes.filter(x=>x.id!==id);
       }
-      state.selected=null;render();persistPositions();
+      selectedNodes.clear();state.selected=null;render();persistPositions();
     }
     async function apply() {
       if(!draftCount())return deps.toast("Nenhuma alteração pendente");
@@ -453,6 +655,7 @@
       // Validar redes antes de qualquer alteração real.
       for(const network of planned.filter(n=>n.kind==="network")){
         if(network.gateway && !network.subnet)return deps.toast("Informe a sub-rede antes do gateway",true);
+         if(network.ipv6_gateway && !network.ipv6_subnet)return deps.toast("Informe a sub-rede IPv6 antes do gateway IPv6",true);
       }
       let operationPlan;
       try {
@@ -470,7 +673,7 @@
         title:"Aplicar alterações ao Docker?",
         description:"Será criado: "+planned.length+" bloco(s), conectado: "+count+
           " ligação(ões), desconectado: "+state.removed.length+
-          ". Imagens ausentes serão baixadas primeiro. Operações não são atômicas.",fields:[],
+          ". Sem arestas, novos containers ficam em network=none; com arestas, entram diretamente na primeira rede. Operações não são atômicas.",fields:[],
         confirmText:"Aplicar ao Docker"
       });
       if(!accepted)return;
@@ -488,14 +691,18 @@
         }
         // 1. Redes antes dos containers: estes podem escolher a rede ao nascer.
         for(const n of planned.filter(x=>x.kind==="network")){
-          const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal,subnet:n.subnet||"",gateway:n.gateway||""});
+          const result=await deps.api("/networks/action","POST",{action:"create",name:n.name,internal:!!n.internal,subnet:n.subnet||"",gateway:n.gateway||"",ipv6_subnet:n.ipv6_subnet||"",ipv6_gateway:n.ipv6_gateway||"",enable_ipv6:!!n.ipv6_subnet});
           n.dockerId=result.id;n.existing=true;
         }
-        // 2. Containers devem existir antes dos vínculos de rede.
+        // 2. A primeira rede é usada na CRIAÇÃO para não anexar
+        // acidentalmente containers internos à bridge padrão.
         for(const n of planned.filter(x=>x.kind==="container")){
+          const primary=state.edges.find(e=>e.target===n.id&&node(e.source)?.dockerId);
+          const parent=primary?node(primary.source):null;
           const result=await deps.api("/containers/create","POST",
-            payloads.get(n.id));
+            {...payloads.get(n.id),network:parent?.dockerId||"none"});
           n.dockerId=result.id;n.existing=true;n.status="running";
+          if(primary)primary.persisted=true;
         }
         // 3. Aplicar SOMENTE as novas conexões, com id Docker resolvido.
         for(const edge of state.edges.filter(e=>!e.persisted)){
@@ -560,11 +767,16 @@
       const el=e.target.closest(".df-graph-node");
       if(!el)return;
       const n=node(el.dataset.id);if(!n)return;
-      checkpoint();state.selected={type:"node",id:n.id};
-      state.activeDrag={id:n.id,clientX:e.clientX,clientY:e.clientY,x:n.x,y:n.y};
-      el.setPointerCapture(e.pointerId);renderInspector();
+      if(networkView==="zones"&&n.kind==="network"&&!e.target.closest("[data-zone-handle]"))return;
+      if(e.shiftKey)return; // O click seleciona, sem iniciar arraste.
+      checkpoint();
+      if(!selectedNodes.has(n.id)){selectedNodes.clear();selectedNodes.add(n.id);}
+      state.selected={type:"node",id:n.id};
+      state.activeDrag={id:n.id,clientX:e.clientX,clientY:e.clientY,
+        positions:state.nodes.filter(x=>selectedNodes.has(x.id)).map(x=>({id:x.id,x:x.x,y:x.y}))};
+      stage.setPointerCapture(e.pointerId);renderInspector();
     });
-    layer.addEventListener("pointermove",e=>{
+    stage.addEventListener("pointermove",e=>{
       if(wireDrag){
         if(Math.hypot(e.clientX-wireDrag.x,e.clientY-wireDrag.y)>8)wireDrag.moved=true;
         if(wireDrag.moved){
@@ -582,11 +794,15 @@
       if(!state.activeDrag)return;
       const drag=state.activeDrag,n=node(drag.id);
       if(!n)return;
-      n.x=Math.max(0,drag.x+(e.clientX-drag.clientX)/state.zoom);
-      n.y=Math.max(0,drag.y+(e.clientY-drag.clientY)/state.zoom);
-      // Sem recriar nodes durante arraste: mantém pointer capture.
-      const element=Array.from(layer.children).find(el=>el.dataset.id===n.id);
-      if(element){element.style.left=n.x+"px";element.style.top=n.y+"px";}
+      const dx=(e.clientX-drag.clientX)/state.zoom,dy=(e.clientY-drag.clientY)/state.zoom;
+      // Um movimento aplicado a todos os blocos selecionados; mantém pointer capture.
+      drag.positions.forEach(p=>{
+        const item=node(p.id);
+        if(!item)return;
+        item.x=Math.max(0,p.x+dx);item.y=Math.max(0,p.y+dy);
+        const element=Array.from(layer.children).find(el=>el.dataset.id===item.id);
+        if(element){element.style.left=item.x+"px";element.style.top=item.y+"px";}
+      });
       // Caminho SVG atualiza sem remover o DOM ativo.
       svg.innerHTML=state.edges.map(edge=>{
         const a=node(edge.source),b=node(edge.target);if(!a||!b)return "";
@@ -600,7 +816,7 @@
           '" data-edge="'+esc(edge.id)+'"/>';
       }).join("");
     });
-    layer.addEventListener("pointerup",async e=>{
+    stage.addEventListener("pointerup",async e=>{
       if(wireDrag){
         const start=wireDrag;wireDrag=null;
         svg.querySelector("[data-preview-wire]")?.remove();
@@ -614,9 +830,16 @@
         }
         return;
       }
-      if(state.activeDrag){state.activeDrag=null;persistPositions();render();}
+      if(state.activeDrag){
+        attachByDrop(state.activeDrag.positions.map(p=>p.id),e.clientX,e.clientY);
+        if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);
+        if(snapEnabled)state.activeDrag.positions.forEach(p=>{
+          const item=node(p.id);if(item){item.x=snap(item.x);item.y=snap(item.y);}
+        });
+        state.activeDrag=null;persistPositions();render();
+      }
     });
-    layer.addEventListener("pointercancel",()=>{
+    stage.addEventListener("pointercancel",()=>{
       wireDrag=null;svg.querySelector("[data-preview-wire]")?.remove();
       state.activeDrag=null;
     });
@@ -631,14 +854,27 @@
         return;
       }
       const el=e.target.closest("[data-id]");
-      if(el){state.selected={type:"node",id:el.dataset.id};render();}
+      if(el){
+        const id=el.dataset.id;
+        if(e.shiftKey){if(selectedNodes.has(id))selectedNodes.delete(id);else selectedNodes.add(id);}
+        else if(!selectedNodes.has(id)){selectedNodes.clear();selectedNodes.add(id);}
+        state.selected=selectedNodes.size?{type:"node",id:[...selectedNodes][0]}:null;
+        render();
+      }
     });
     svg.addEventListener("click",e=>{
       const path=e.target.closest("[data-edge]");
-      if(path){state.selected={type:"edge",id:path.dataset.edge};render();}
+      if(path){selectedNodes.clear();state.selected={type:"edge",id:path.dataset.edge};render();}
     });
     stage.addEventListener("pointerdown",e=>{
-      if(e.target!==stage)return;
+      // df-world/df-nodes cobrem toda a área visível. Exigir target===stage
+      // bloqueava a ferramenta "mãozinha" em WebView. Não iniciar pan em
+      // cartões nem conexões; no corpo vazio de uma zona, permitir pan.
+      const interactive=e.target.closest(".df-graph-node");
+      if(e.target.closest("[data-edge]") ||
+         (interactive&&!(networkView==="zones"&&
+           interactive.classList.contains("df-network-zone")&&
+           !e.target.closest("[data-zone-handle]"))))return;
       state.origin={x:e.clientX,y:e.clientY,pX:state.pan.x,pY:state.pan.y};
       stage.setPointerCapture(e.pointerId);
     });
@@ -649,7 +885,7 @@
       transform();
     });
     stage.addEventListener("pointerup",e=>{
-      if(state.origin){state.origin=null;stage.releasePointerCapture(e.pointerId);}
+      if(state.origin){state.origin=null;if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);}
     });
     stage.addEventListener("pointercancel",()=>{state.origin=null;});
     stage.addEventListener("wheel",e=>{
@@ -665,8 +901,17 @@
       e.preventDefault();const kind=e.dataTransfer.getData("application/dockerflow-node");
       if(!["container","network"].includes(kind))return;
       const rect=stage.getBoundingClientRect();
-      await addDraft(kind,(e.clientX-rect.left-state.pan.x)/state.zoom,
-        (e.clientY-rect.top-state.pan.y)/state.zoom);
+      const x=(e.clientX-rect.left-state.pan.x)/state.zoom;
+      const y=(e.clientY-rect.top-state.pan.y)/state.zoom;
+      const draft=await addDraft(kind,x,y);
+      if(draft?.kind==="container"&&networkView==="zones"){
+        const zone=zoneAt(x,y);
+        if(zone&&normalizeEdge(zone.id,draft.id,false)){
+          zone.zoneHeight=Math.max(zone.zoneHeight||ZONE_HEIGHT,zoneHeight(zone));
+          render();deps.toast("Novo container associado à rede "+zone.name+
+            ". Revise e clique em Aplicar alterações.");
+        }
+      }
     });
     document.querySelectorAll(".df-palette-item").forEach(el=>{
       el.addEventListener("dragstart",e=>e.dataTransfer.setData("application/dockerflow-node",el.dataset.kind));
@@ -690,6 +935,7 @@
       if(!action)return;
       const n=node(state.selected?.id);
       if(action==="remove-edge"||action==="delete-node")return removeSelected();
+      if(action==="duplicate"){copySelection();pasteSelection();return;}
       if(action==="terminal"&&n){deps.openTerminal(n.dockerId);}
       if(action==="diagnose"&&n){
         const others=state.nodes.filter(item=>item.kind==="container"&&item.existing&&item.id!==n.id);
@@ -723,6 +969,16 @@
     $("df-diagram-diff").onclick=compareDocker;
     $("df-deploy-preview").onclick=previewPlan;
     $("df-graph-svg").onclick=exportSvg;
+    $("df-graph-png").onclick=exportPng;
+    $("df-layout").onclick=()=>networkView==="zones"?arrangeZones():autoLayout();
+    $("df-duplicate").onclick=()=>{copySelection();pasteSelection();};
+    $("df-snap").checked=snapEnabled;
+    $("df-snap").onchange=e=>{
+      snapEnabled=e.target.checked;
+      try{localStorage.setItem("dockerflow.graph.snap",String(snapEnabled));}catch(_){}
+    };
+    $("df-graph-search").oninput=e=>{searchTerm=e.target.value.trim().toLocaleLowerCase("pt-BR");render();};
+    document.addEventListener("keydown",onGraphKeyboard);
     $("df-graph-report").onclick=exportReport;
     $("df-template-load").onclick=()=>useTemplate($("df-template").value);
     $("df-zoom-in").onclick=()=>{state.zoom=Math.min(1.8,state.zoom+.1);transform();};
@@ -730,13 +986,15 @@
     $("df-zoom-reset").onclick=()=>{state.zoom=1;state.pan={x:65,y:46};transform();};
     $("df-graph-demo").onclick=loadExample;
     $("df-graph-load").onclick=()=>importDocker();
+    $("df-graph-relations").onclick=importAllRelations;
+    $("df-network-view").onchange=e=>setNetworkView(e.target.value,e.target.value==="zones");
     $("df-graph-apply").onclick=apply;
     $("df-graph-save").onclick=exportJson;
     $("df-graph-compose").onclick=exportCompose;
     $("df-import-file").onclick=()=>$("df-import-input").click();
     $("df-import-input").onchange=e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value="";};
 
-    render();
-    return {importDocker,exportJson,render,addDraft,apply,loadGraph,getState:()=>state};
+    setNetworkView(networkView);
+    return {importDocker,importAllRelations,exportJson,render,addDraft,apply,loadGraph,getState:()=>state};
   };
 })();
