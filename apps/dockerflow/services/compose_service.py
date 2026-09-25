@@ -160,10 +160,10 @@ def resolve_container_secrets(data):
             raise ValueError("Nome de variável do serviço inválido.")
         if not isinstance(value, (str, int, float, bool)):
             raise ValueError("Valores do serviço devem ser escalares.")
-        if isinstance(value, str) and "\${" in value:
+        if isinstance(value, str) and "${" in value:
             match = GRAPH_SECRET.fullmatch(value)
             if not match:
-                raise ValueError("Use uma referência única \${NOME} para credenciais "
+                raise ValueError("Use uma referência única ${NOME} para credenciais "
                                  "do laboratório ou configure na Compose IDE.")
             needed[name] = match.group(1)
         else:

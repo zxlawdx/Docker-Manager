@@ -103,6 +103,7 @@ async function main(){
   assert.equal(calls.length,0,"Canvas drag must never modify Docker automatically");
 
   responses.push({name:"secure",image:"postgres:16"});
+  document.getElementById("df-project").value="dockerflow";
   const passwordNode=await graph.addDraft("container",500,100);
   const userActions=document.getElementById("df-inspector-content");
   responses.push({env:"POSTGRES_PASSWORD",secret:"DB_PASSWORD",password:"never-in-diagram"});

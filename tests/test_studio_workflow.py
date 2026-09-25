@@ -97,8 +97,8 @@ class VisualWorkflowTests(unittest.TestCase):
         for name in ("df-network-view", "df-graph-relations", "df-admin-scan",
                      "df-admin-purge", "df-ide-template-load"):
             self.assertIn('id="' + name + '"', page)
-        self.assertIn('stage.setPointerCapture(e.pointerId)', graph)
-        self.assertIn('stage.addEventListener("pointermove"', graph)
+        self.assertIn('window.addEventListener("pointermove",globalMove,true)', graph)
+        self.assertIn('window.addEventListener("pointerup",globalUp,true)', graph)
         self.assertIn('function attachByDrop(', graph)
         self.assertIn('function importAllRelations(', graph)
         self.assertIn('"df-graph-relations").onclick=importAllRelations', graph)
