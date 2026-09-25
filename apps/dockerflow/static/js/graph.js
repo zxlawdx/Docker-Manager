@@ -867,7 +867,14 @@
       if(path){selectedNodes.clear();state.selected={type:"edge",id:path.dataset.edge};render();}
     });
     stage.addEventListener("pointerdown",e=>{
-      if(e.target!==stage)return;
+      // df-world/df-nodes cobrem toda a área visível. Exigir target===stage
+      // bloqueava a ferramenta "mãozinha" em WebView. Não iniciar pan em
+      // cartões nem conexões; no corpo vazio de uma zona, permitir pan.
+      const interactive=e.target.closest(".df-graph-node");
+      if(e.target.closest("[data-edge]") ||
+         (interactive&&!(networkView==="zones"&&
+           interactive.classList.contains("df-network-zone")&&
+           !e.target.closest("[data-zone-handle]"))))return;
       state.origin={x:e.clientX,y:e.clientY,pX:state.pan.x,pY:state.pan.y};
       stage.setPointerCapture(e.pointerId);
     });
