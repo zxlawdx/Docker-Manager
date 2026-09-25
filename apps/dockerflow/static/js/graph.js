@@ -109,7 +109,8 @@
       ids.forEach(id=>{const c=node(id);
         if(c?.kind==="container"&&normalizeEdge(zone.id,c.id,false))count++;
       });
-      if(count)deps.toast(count+" ligação(ões) planejada(s) para "+zone.name+". Revise e clique Aplicar.");
+      if(count){zone.zoneHeight=Math.max(zone.zoneHeight||ZONE_HEIGHT,zoneHeight(zone));
+        deps.toast(count+" ligação(ões) planejada(s) para "+zone.name+". Revise e clique Aplicar.");}
     }
     async function importAllRelations(){
       try{
@@ -180,7 +181,8 @@
       state.edges=document.edges.map(e=>({...e,persisted:false}));
       state.removed=[];state.selected=null;state.linking=null;selectedNodes.clear();
       sourceCompose=document.source_compose||"";
-      render();persistPositions();
+      if(networkView==="zones")arrangeZones();else render();
+      persistPositions();
     }
     async function saveProject(){
       const values=await deps.ask({title:"Salvar projeto visual",fields:[{key:"name",label:"Nome do projeto",value:"laboratorio"}],confirmText:"Salvar"});
@@ -537,6 +539,7 @@
         image:values.image?.trim()||"",internal:false};
       if(state.nodes.some(o=>o.name===n.name&&o.kind===n.kind)) return deps.toast("Nome já usado no desenho",true);
       checkpoint();state.nodes.push(n);selectedNodes.clear();selectedNodes.add(n.id);state.selected={type:"node",id:n.id};persistPositions();render();
+      return n;
     }
     async function connect(a,b) {
       if (a===b) return deps.toast("Escolha outro bloco",true);
@@ -891,8 +894,17 @@
       e.preventDefault();const kind=e.dataTransfer.getData("application/dockerflow-node");
       if(!["container","network"].includes(kind))return;
       const rect=stage.getBoundingClientRect();
-      await addDraft(kind,(e.clientX-rect.left-state.pan.x)/state.zoom,
-        (e.clientY-rect.top-state.pan.y)/state.zoom);
+      const x=(e.clientX-rect.left-state.pan.x)/state.zoom;
+      const y=(e.clientY-rect.top-state.pan.y)/state.zoom;
+      const draft=await addDraft(kind,x,y);
+      if(draft?.kind==="container"&&networkView==="zones"){
+        const zone=zoneAt(x,y);
+        if(zone&&normalizeEdge(zone.id,draft.id,false)){
+          zone.zoneHeight=Math.max(zone.zoneHeight||ZONE_HEIGHT,zoneHeight(zone));
+          render();deps.toast("Novo container associado à rede "+zone.name+
+            ". Revise e clique em Aplicar alterações.");
+        }
+      }
     });
     document.querySelectorAll(".df-palette-item").forEach(el=>{
       el.addEventListener("dragstart",e=>e.dataTransfer.setData("application/dockerflow-node",el.dataset.kind));
