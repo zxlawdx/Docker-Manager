@@ -985,12 +985,60 @@
           n.env_text=JSON.stringify(preset.env,null,2);render();}
       }
     });
+    async function configureSecret(n){
+      if(n.existing){
+        deps.navigate("ide");
+        return deps.toast("Containers existentes devem ser recriados para receber novas senhas. Configure seu Compose.");
+      }
+      const presets=[
+        ["postgres","POSTGRES_PASSWORD","POSTGRES_PASSWORD"],
+        ["mysql","MYSQL_ROOT_PASSWORD","MYSQL_ROOT_PASSWORD"],
+        ["mariadb","MARIADB_ROOT_PASSWORD","MARIADB_ROOT_PASSWORD"],
+        ["mongo","MONGO_INITDB_ROOT_PASSWORD","MONGO_PASSWORD"],
+        ["grafana","GF_SECURITY_ADMIN_PASSWORD","GRAFANA_PASSWORD"],
+        ["rabbitmq","RABBITMQ_DEFAULT_PASS","RABBIT_PASSWORD"]
+      ];
+      const hint=presets.find(([prefix])=>String(n.image||"").toLowerCase().includes(prefix));
+      let env;
+      try {env=JSON.parse(n.env_text||"{}");}
+      catch(_){return deps.toast("Corrija o JSON do ambiente antes de definir credenciais.",true);}
+      const currentKey=Object.keys(env).find(key=>/PASSWORD|SECRET|TOKEN/i.test(key));
+      const key=currentKey||hint?.[1]||"APP_PASSWORD";
+      const match=String(env[key]||"").match(/^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/);
+      const project=$("df-project").value.trim();
+      if(!/^[a-z][a-z0-9_-]{0,39}$/.test(project))
+        return deps.toast("Configure primeiro o nome do projeto na Compose IDE.",true);
+      const form=await deps.ask({
+        title:"Credencial do serviço "+n.name,
+        description:"O valor fica no cofre do projeto "+project+
+          "; o diagrama guarda apenas \${VARIAVEL}. A alteração real ocorre ao clicar Aplicar.",
+        fields:[{key:"env",label:"Variável esperada pela imagem",value:key},
+          {key:"secret",label:"Nome no cofre do projeto",value:match?.[1]||hint?.[2]||key},
+          {key:"password",label:"Senha/segredo",type:"password",value:""}],
+        confirmText:"Salvar credencial"
+      });
+      if(!form)return;
+      const valid=value=>/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(value);
+      if(!valid(form.env)||!valid(form.secret)||!form.password)
+        return deps.toast("Informe uma senha e dois nomes de variável válidos.",true);
+      try{
+        await deps.api("/compose/variables/set","POST",{
+          name:project,key:form.secret,value:form.password});
+        form.password="";
+        checkpoint();
+        env[form.env]="\${"+form.secret+"}";
+        n.env_text=JSON.stringify(env,null,2);
+        render();
+        deps.toast("Senha cadastrada no projeto "+project+". Somente a referência está no desenho.");
+      }catch(err){form.password="";deps.toast("Não foi possível salvar a credencial: "+err.message,true);}
+    }
     inspector.addEventListener("click",async e=>{
       const action=e.target.closest("[data-graph-action]")?.dataset.graphAction;
       if(!action)return;
       const n=node(state.selected?.id);
       if(action==="remove-edge"||action==="delete-node")return removeSelected();
       if(action==="duplicate"){copySelection();pasteSelection();return;}
+      if(action==="configure-secret"&&n){await configureSecret(n);return;}
       if(action==="terminal"&&n){deps.openTerminal(n.dockerId);}
       if(action==="diagnose"&&n){
         const others=state.nodes.filter(item=>item.kind==="container"&&item.existing&&item.id!==n.id);

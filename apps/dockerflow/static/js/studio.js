@@ -88,10 +88,12 @@
           '" '+(f.type?'type="'+esc(f.type)+'"':"")+' autocomplete="off"></label>').join("");
       $("df-modal-confirm").textContent=confirmText;
       const complete=()=>{
-        if(modal.returnValue!=="confirm")return resolve(null);
         const result={};
-        modal.querySelectorAll("[data-modal-key]").forEach(i=>result[i.dataset.modalKey]=i.value);
-        resolve(result);
+        if(modal.returnValue==="confirm")
+          modal.querySelectorAll("[data-modal-key]").forEach(i=>result[i.dataset.modalKey]=i.value);
+        // Apagar as senhas temporárias da árvore DOM, inclusive ao cancelar.
+        modal.querySelectorAll('input[type="password"]').forEach(i=>i.value="");
+        resolve(modal.returnValue==="confirm"?result:null);
       };
       modal.addEventListener("close",complete,{once:true});
       modal.returnValue="";
